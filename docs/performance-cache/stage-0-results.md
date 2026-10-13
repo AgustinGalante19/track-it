@@ -2,7 +2,7 @@
 
 ## Revision
 
-Base: `6c94d5fa2c6a2d3249817a19693fb1c4b837845c`. Implementation revision is recorded below after committing the verified source. No deployment or external financial data was modified.
+Base: `6c94d5fa2c6a2d3249817a19693fb1c4b837845c`. Verified implementation: `4051b5d` on `codex/performance-cache-stage-0` (checks ran against identical source before committing). No deployment or external financial data was modified.
 
 ## Environment
 

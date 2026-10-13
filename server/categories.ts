@@ -39,32 +39,35 @@ async function reassign(tx: Executor, userId: string, previous: string, next: st
 }
 
 export async function createCategory(db: Database, userId: string, input: CategoryInput) {
-  return timedTransaction(db, async (tx) => {
-    await initializeCategories(tx, userId);
-    await checkName(tx, userId, input.name);
-    return (await tx.insert(s.categories).values({ ...input, id: randomUUID(), userId }).returning())[0];
-  });
+  return timedTransaction(db, (tx) => createCategoryInTransaction(tx, userId, input));
+}
+export async function createCategoryInTransaction(tx: Executor, userId: string, input: CategoryInput) {
+  await initializeCategories(tx, userId);
+  await checkName(tx, userId, input.name);
+  return (await tx.insert(s.categories).values({ ...input, id: randomUUID(), userId }).returning())[0];
 }
 
 export async function editCategory(db: Database, userId: string, id: string, input: CategoryInput & { version: number }) {
-  return timedTransaction(db, async (tx) => {
-    const category = await ownedCategory(tx, userId, id);
-    if (category.version !== input.version) throw new DomainError('La categoría cambió en otro dispositivo. Actualizá antes de editar.', 409);
-    await checkName(tx, userId, input.name, id);
-    await reassign(tx, userId, category.name, input.name);
-    return (await tx.update(s.categories).set({ ...input, version: category.version + 1 }).where(and(eq(s.categories.id, id), eq(s.categories.userId, userId))).returning())[0];
-  });
+  return timedTransaction(db, (tx) => editCategoryInTransaction(tx, userId, id, input));
+}
+export async function editCategoryInTransaction(tx: Executor, userId: string, id: string, input: CategoryInput & { version: number }) {
+  const category = await ownedCategory(tx, userId, id);
+  if (category.version !== input.version) throw new DomainError('La categoría cambió en otro dispositivo. Actualizá antes de editar.', 409);
+  await checkName(tx, userId, input.name, id);
+  await reassign(tx, userId, category.name, input.name);
+  return (await tx.update(s.categories).set({ ...input, version: category.version + 1 }).where(and(eq(s.categories.id, id), eq(s.categories.userId, userId))).returning())[0];
 }
 
 export async function deleteCategory(db: Database, userId: string, id: string, input: { version: number; replacementId: string | null }) {
-  return timedTransaction(db, async (tx) => {
-    const category = await ownedCategory(tx, userId, id);
-    if (category.version !== input.version) throw new DomainError('La categoría cambió en otro dispositivo. Actualizá antes de eliminar.', 409);
-    if (input.replacementId === id) throw new DomainError('Elegí una categoría diferente.');
-    const replacement = input.replacementId ? await ownedCategory(tx, userId, input.replacementId) : null;
-    await reassign(tx, userId, category.name, replacement?.name || 'Sin categoría');
-    await tx.insert(s.categoryState).values({ userId }).onConflictDoNothing();
-    await tx.delete(s.categories).where(and(eq(s.categories.id, id), eq(s.categories.userId, userId)));
-    return { ok: true };
-  });
+  return timedTransaction(db, (tx) => deleteCategoryInTransaction(tx, userId, id, input));
+}
+export async function deleteCategoryInTransaction(tx: Executor, userId: string, id: string, input: { version: number; replacementId: string | null }) {
+  const category = await ownedCategory(tx, userId, id);
+  if (category.version !== input.version) throw new DomainError('La categoría cambió en otro dispositivo. Actualizá antes de eliminar.', 409);
+  if (input.replacementId === id) throw new DomainError('Elegí una categoría diferente.');
+  const replacement = input.replacementId ? await ownedCategory(tx, userId, input.replacementId) : null;
+  await reassign(tx, userId, category.name, replacement?.name || 'Sin categoría');
+  await tx.insert(s.categoryState).values({ userId }).onConflictDoNothing();
+  await tx.delete(s.categories).where(and(eq(s.categories.id, id), eq(s.categories.userId, userId)));
+  return { ok: true };
 }

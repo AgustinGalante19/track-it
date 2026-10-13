@@ -9,8 +9,9 @@ import { and, eq } from "drizzle-orm"
 import { auth, trustedOrigins, signupEnabled, googleEnabled, authOrigin } from "./auth"
 import { db } from "./db/client"
 import * as schema from "./db/schema"
-import * as service from "./service"
-import { createCategory, editCategory, deleteCategory } from "./categories"
+import * as service from "./sync-service"
+import { createCategory, editCategory, deleteCategory } from "./sync-service"
+import { withFinanceSync } from "./finance-sync"
 import { demoEnabled, prepareDemo } from "./demo"
 import { exportBackup, restoreBackup } from "./backup"
 import {
@@ -78,6 +79,14 @@ app.use("/api/*", async (c, next) => {
       return c.json({ error: "Origen no permitido." }, 403)
   }
   await next()
+})
+// Only financial mutation routes opt into sync; legacy routes ignore sync-only metadata.
+app.use("/api/*", async (c, next) => {
+  const financial = /^(?:POST \/api\/(?:accounts|expenses|incomes|recurring|plans|categories)|(?:PATCH|DELETE) \/api\/(?:accounts|categories)\/[^/]+|PUT \/api\/(?:expenses|recurring)\/[^/]+|DELETE \/api\/recurring\/[^/]+|POST \/api\/(?:movements\/[^/]+\/void|occurrences\/[^/]+\/(?:charge|skip)|installments\/[^/]+\/charge|plans\/[^/]+\/cancel))$/
+  if (c.req.query("sync") !== "1" || !financial.test(`${c.req.method} ${c.req.path}`)) return next()
+  const month = monthSchema.parse(c.req.query("month") || today().slice(0, 7))
+  if (month < "2000-01" || month > "2100-12") throw new service.DomainError("Mes fuera de rango.")
+  return withFinanceSync(month, next)
 })
 async function body<T extends z.ZodType>(
   request: { json: () => Promise<unknown> },
