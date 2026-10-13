@@ -56,8 +56,8 @@ Verification sessions may prepare fixtures and expected outcomes in parallel, bu
 - [x] Stage 0 verification PASS (local; published/device checks blocked — see stage-0-results.md)
 - [x] Stage 1 implementation completed
 - [x] Stage 1 verification PASS (local)
-- [ ] Stage 2 implementation completed
-- [ ] Stage 2 verification PASS
+- [x] Stage 2 implementation completed
+- [x] Stage 2 verification PASS (local)
 - [ ] Stage 3 implementation completed
 - [ ] Stage 3 verification PASS
 - [ ] Stage 4 implementation completed
