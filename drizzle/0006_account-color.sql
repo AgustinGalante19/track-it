@@ -1,0 +1,1 @@
+ALTER TABLE `finance_account` ADD `color` text;

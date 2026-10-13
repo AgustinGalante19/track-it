@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#096b62" />
+    <meta name="description" content="Tus gastos, cuentas y próximos pagos, en un lugar." />
+    <meta name="application-name" content="Track-It" />
+    <meta name="apple-mobile-web-app-title" content="Track-It" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <title>Track-It</title>
+    <script>
+      try { document.documentElement.dataset.theme = localStorage.getItem('theme') || 'system'; } catch {}
+    </script>
+    <style>
+      .boot-splash{min-height:100dvh;display:grid;place-content:center;justify-items:center;gap:16px;background:#f5f6f8;color:#62727a;font:13px system-ui,sans-serif}
+      .boot-spinner{width:22px;height:22px;border:2px solid #096b6230;border-top-color:#096b62;border-radius:50%;animation:boot-spin .8s linear infinite}
+      :root[data-theme=dark] .boot-splash{background:#14191c;color:#a4b4bb}
+      @media(prefers-color-scheme:dark){:root:not([data-theme=light]) .boot-splash{background:#14191c;color:#a4b4bb}}
+      @keyframes boot-spin{to{transform:rotate(360deg)}}
+      @media(prefers-reduced-motion:reduce){.boot-spinner{animation:none}}
+    </style>
+  </head>
+  <body style="margin:0">
+    <div id="root"><div class="boot-splash" role="status" aria-live="polite"><img src="/icon-192.png" width="37" height="37" alt="Track-It" /><span class="boot-spinner" aria-hidden="true"></span><p>Abriendo Track-It…</p></div></div>
+    <noscript>Activá JavaScript para usar Track-It.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

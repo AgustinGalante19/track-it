@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1791665431295,
+      "tag": "0000_narrow_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791666072842,
+      "tag": "0001_lush_dark_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791774853960,
+      "tag": "0002_username-auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791819445387,
+      "tag": "0003_delete-recurring",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791826285739,
+      "tag": "0004_remove-account-balances",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791892021750,
+      "tag": "0005_cool_paladin",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791897783333,
+      "tag": "0006_account-color",
+      "breakpoints": true
+    }
+  ]
+}

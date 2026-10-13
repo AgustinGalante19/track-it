@@ -1,0 +1,1 @@
+ALTER TABLE `recurring` ADD `deleted` integer DEFAULT false NOT NULL;

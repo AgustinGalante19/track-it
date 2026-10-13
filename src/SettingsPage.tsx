@@ -1,0 +1,22 @@
+import { useState } from 'react';
+import { Download, FileJson, Upload } from 'lucide-react';
+import { useFinance } from './context';
+import { Button } from './components/ui/button';
+import { Dialog } from './components/ui/dialog';
+import { SessionPreferences } from './components/SessionPreferences';
+import { api, send } from './lib/api';
+import { today } from '../shared/format';
+function Header({ title, description }: { title: string; description: string }) { return <div className="page-heading"><div><h1>{title}</h1><p>{description}</p></div></div>; }
+function download(name: string, text: string, type: string) { const url = URL.createObjectURL(new Blob([text], { type })); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+export function SettingsPage() {
+  const { data, notify, refresh } = useFinance(); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [restore, setRestore] = useState<unknown | null>(null);
+  async function exportBackup() { setBusy(true); setError(''); try { const backup = await api('/backup'); download(`track-it-${today()}.json`, JSON.stringify(backup, null, 2), 'application/json'); notify('Respaldo descargado.'); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
+  function exportCSV() {
+    const rows = [['Fecha', 'Concepto', 'Tipo', 'Moneda', 'Importe', 'Gasto', 'Cuenta', 'Destino', 'Moneda recibida', 'Importe recibido', 'Comisión', 'Categoría', 'Estado', 'Nota'], ...data.movements.map((m) => [m.date, m.concept, m.kind, m.currency, (m.amount / 100).toFixed(2), (m.expenseAmount / 100).toFixed(2), data.accounts.find((a) => a.id === m.accountId)?.name || '', data.accounts.find((a) => a.id === m.destinationId)?.name || m.counterpart, m.destinationCurrency || '', m.receivedAmount === null ? '' : (m.receivedAmount / 100).toFixed(2), (m.fee / 100).toFixed(2), m.category, m.voided ? 'Anulado' : 'Registrado', m.notes])];
+    const safeCell = (value: string) => `"${(/^[=+@\-\t\r]/.test(value) ? `'${value}` : value).replace(/"/g, '""')}"`;
+    download(`movimientos-${today()}.csv`, '\uFEFF' + rows.map((row) => row.map((value) => safeCell(String(value))).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+  }
+  return <><Header title="Configuración" description="Tu espacio, a tu manera." /><SessionPreferences /><section className="settings-card"><div><h2>Tus datos son tuyos</h2><p className="muted small">El respaldo JSON conserva cuentas, cuotas y relaciones. El CSV sirve para consultar movimientos en una planilla.</p></div><div className="backup-actions"><Button variant="outline" disabled={busy} onClick={exportBackup}><FileJson size={17} />Descargar respaldo</Button><Button variant="outline" onClick={exportCSV}><Download size={17} />Exportar CSV</Button><label className="btn btn-outline"><Upload size={17} />Restaurar respaldo<input className="sr-only" type="file" accept="application/json,.json" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return; setError(''); try { if (file.size > 3 * 1024 * 1024) throw new Error('El respaldo supera 3 MB.'); setRestore(JSON.parse(await file.text())); } catch (e) { setError((e as Error).message); } }} /></label></div></section><p className="muted small settings-version">Track-It · Primera versión · Los movimientos requieren conexión.</p>{error && <p className="form-error" role="alert">{error}</p>}{restore !== null && <Dialog title="Restaurar respaldo" description="Reemplaza los datos financieros de tu cuenta. El acceso y la contraseña se conservan." onClose={() => { if (!busy) setRestore(null); }}><div className="dialog-body"><p className="muted">Descargá primero un respaldo de tus datos actuales. El archivo se validará antes de reemplazar cuentas y movimientos.</p>{error && <p className="form-error" role="alert">{error}</p>}</div><div className="dialog-actions"><Button variant="outline" disabled={busy} onClick={() => setRestore(null)}>Cancelar</Button><Button variant="danger" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await send('/backup/restore', restore); setRestore(null); refresh(); notify('Respaldo restaurado.'); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }}>{busy ? 'Restaurando…' : 'Reemplazar mis datos'}</Button></div></Dialog>}</>;
+}
+

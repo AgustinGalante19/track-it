@@ -1,0 +1,22 @@
+.accounts-toolbar .search-box{max-width:260px}
+.accounts-toolbar .filter-tabs button{display:inline-flex;align-items:center;gap:8px}
+.accounts-toolbar .filter-tabs button span{font-size:11px;opacity:.75}
+.accounts-caption{font-size:12px;color:var(--muted);margin-bottom:16px}
+.accounts-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.account-card{min-width:0;border:1px solid var(--line);border-radius:16px;background:var(--surface);overflow:hidden;transition:border-color .15s}
+.account-card:hover{border-color:color-mix(in srgb,var(--account-color) 55%,var(--line))}
+.account-card-body{padding:24px;background:linear-gradient(125deg,color-mix(in srgb,var(--account-color) 17%,var(--surface)),color-mix(in srgb,var(--account-color) 3%,var(--surface)) 85%);border-top:3px solid var(--account-color)}
+.account-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:26px}
+.account-card-icon{width:52px;height:52px;display:grid;place-items:center;border-radius:15px;background:var(--account-color);color:var(--account-ink)}
+.account-currency{font-size:11px;font-weight:600;letter-spacing:.06em;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}
+.account-card-title{display:block;width:fit-content;max-width:100%;margin-bottom:6px;border-radius:3px}
+.account-card-title h2{font-size:21px;line-height:1.35;overflow-wrap:anywhere}
+.account-card-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+.account-history-link{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:8px;border-radius:6px}
+.account-history-link:hover{background:var(--soft)}
+.account-card-actions{display:flex;gap:2px}
+.account-card-actions .btn{width:34px;min-height:36px;padding:7px}
+.accounts-footnote{margin-top:22px;line-height:1.7}
+@media(max-width:1200px){.accounts-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.accounts-grid{gap:12px}.account-card-body{padding:20px}.account-card-title h2{font-size:20px}}
+@media(max-width:540px){.accounts-grid{grid-template-columns:minmax(0,1fr)}.accounts-toolbar{align-items:stretch;flex-direction:column}.accounts-toolbar .search-box{max-width:none}.account-card-top{margin-bottom:20px}}
