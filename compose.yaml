@@ -1,0 +1,51 @@
+services:
+  api:
+    build:
+      context: .
+      target: api
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3001"
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+  dns:
+    image: coredns/coredns:1.14.7
+    command: ["-conf", "/etc/coredns/Corefile"]
+    restart: unless-stopped
+    ports:
+      - "192.168.0.112:53:53/udp"
+      - "192.168.0.112:53:53/tcp"
+    volumes:
+      - ./Corefile:/etc/coredns/Corefile:ro
+
+volumes:
+  caddy_data:
+  caddy_config:

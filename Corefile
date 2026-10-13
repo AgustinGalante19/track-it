@@ -1,0 +1,14 @@
+no-gastes-de-mas.duckdns.org:53 {
+    errors
+    hosts {
+        192.168.0.112 no-gastes-de-mas.duckdns.org
+        ttl 60
+        no_reverse
+    }
+}
+
+.:53 {
+    errors
+    forward . 1.1.1.1 9.9.9.9
+    cache 60
+}

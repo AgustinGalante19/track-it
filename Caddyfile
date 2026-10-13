@@ -1,0 +1,15 @@
+no-gastes-de-mas.duckdns.org {
+    encode zstd gzip
+
+    handle /api/* {
+        reverse_proxy api:3001
+    }
+
+    handle {
+        root * /srv
+        header Cache-Control "no-cache"
+        try_files {path} /index.html
+        file_server
+    }
+}
+
