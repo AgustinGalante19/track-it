@@ -27,6 +27,7 @@ import { addMonth, formatMoney, today } from "../shared/format"
 import { Button } from "./components/ui/button"
 import { Dialog } from "./components/ui/dialog"
 import { useAutoRefresh } from "./lib/use-auto-refresh"
+import { observeFinanceRender } from "./lib/performance"
 import {
   AppSidebar,
   AccountMenuTrigger,
@@ -52,6 +53,7 @@ export function Loading() {
 }
 export function Layout() {
   const { data, user, loadedAt } = useLoaderData() as { data: Snapshot; user: AuthUser; loadedAt: number }
+  useEffect(observeFinanceRender, [data])
   const [params, setParams] = useSearchParams()
   const month = params.get("mes") || today().slice(0, 7)
   const [currency, setCurrencyState] = useState<Currency>(() =>

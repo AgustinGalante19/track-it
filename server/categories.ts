@@ -1,3 +1,4 @@
+import { timedTransaction } from './timing';
 import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import type { Database } from './db/client';
@@ -38,7 +39,7 @@ async function reassign(tx: Executor, userId: string, previous: string, next: st
 }
 
 export async function createCategory(db: Database, userId: string, input: CategoryInput) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     await initializeCategories(tx, userId);
     await checkName(tx, userId, input.name);
     return (await tx.insert(s.categories).values({ ...input, id: randomUUID(), userId }).returning())[0];
@@ -46,7 +47,7 @@ export async function createCategory(db: Database, userId: string, input: Catego
 }
 
 export async function editCategory(db: Database, userId: string, id: string, input: CategoryInput & { version: number }) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const category = await ownedCategory(tx, userId, id);
     if (category.version !== input.version) throw new DomainError('La categoría cambió en otro dispositivo. Actualizá antes de editar.', 409);
     await checkName(tx, userId, input.name, id);
@@ -56,7 +57,7 @@ export async function editCategory(db: Database, userId: string, id: string, inp
 }
 
 export async function deleteCategory(db: Database, userId: string, id: string, input: { version: number; replacementId: string | null }) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const category = await ownedCategory(tx, userId, id);
     if (category.version !== input.version) throw new DomainError('La categoría cambió en otro dispositivo. Actualizá antes de eliminar.', 409);
     if (input.replacementId === id) throw new DomainError('Elegí una categoría diferente.');

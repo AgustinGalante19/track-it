@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception"
 import { bodyLimit } from "hono/body-limit"
 import { secureHeaders } from "hono/secure-headers"
 import { z } from "zod"
+import { timed, timingHeader, withTimings } from "./timing"
 import type { AuthUser } from "../shared/auth"
 import { and, eq } from "drizzle-orm"
 import { auth, trustedOrigins, signupEnabled, googleEnabled, authOrigin } from "./auth"
@@ -28,6 +29,11 @@ import {
 
 type Env = { Variables: { userId: string; sessionCreatedAt: number; user: AuthUser } }
 export const app = new Hono<Env>()
+app.use("/api/*", async (c, next) => withTimings(async () => {
+  c.header("Cache-Control", "no-store")
+  await timed("total", next)
+  c.header("Server-Timing", timingHeader())
+}))
 app.use("/api/*", secureHeaders())
 app.use(
   "/api/*",
@@ -58,7 +64,7 @@ app.on(["GET", "POST", "PATCH", "DELETE"], "/api/auth/*", (c) =>
   auth.handler(c.req.raw),
 )
 app.use("/api/*", async (c, next) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers })
+  const session = await timed("auth", () => auth.api.getSession({ headers: c.req.raw.headers }))
   if (!session)
     return c.json({ error: "Tu sesión venció. Volvé a ingresar." }, 401)
   c.set("userId", session.user.id)
@@ -102,6 +108,7 @@ app.get("/api/bootstrap", async (c) => {
   return c.json({
     data: await service.getSnapshot(db, c.get("userId"), month),
     user: c.get("user"),
+    userId: c.get("userId"),
   })
 })
 app.get("/api/snapshot", async (c) => {

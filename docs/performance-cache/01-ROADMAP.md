@@ -52,8 +52,8 @@ Verification sessions may prepare fixtures and expected outcomes in parallel, bu
 
 ## Pending execution checklist
 
-- [ ] Stage 0 implementation completed
-- [ ] Stage 0 verification PASS
+- [x] Stage 0 implementation completed
+- [x] Stage 0 verification PASS (local; published/device checks blocked — see stage-0-results.md)
 - [ ] Stage 1 implementation completed
 - [ ] Stage 1 verification PASS
 - [ ] Stage 2 implementation completed

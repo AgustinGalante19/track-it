@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { timed, timedTransaction } from './timing';
 import { and, eq, getTableColumns, gt, lte, sql } from 'drizzle-orm';
 import type { Database } from './db/client';
 import * as s from './db/schema';
@@ -43,7 +44,7 @@ async function insertMovement(tx: Executor, movement: Movement, lines: { account
   return movement;
 }
 export async function createAccount(db: Database, userId: string, input: AccountInput) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const [existing] = await tx.select().from(s.financeAccounts).where(eq(s.financeAccounts.id, input.id));
     if (existing) { if (existing.userId !== userId) throw new DomainError('Identificador no disponible.', 409); return existing; }
     const [account] = await tx.insert(s.financeAccounts).values({ ...input, userId }).returning();
@@ -51,7 +52,7 @@ export async function createAccount(db: Database, userId: string, input: Account
   });
 }
 export async function editAccount(db: Database, userId: string, id: string, input: { name: string; emoji: string; color?: string | null; archived: boolean; version: number }) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const account = await ownedAccount(tx, userId, id, true);
     if (account.version !== input.version) throw new DomainError('La cuenta cambió en otro dispositivo. Actualizá antes de editar.', 409);
     if (input.archived) {
@@ -64,7 +65,7 @@ export async function editAccount(db: Database, userId: string, id: string, inpu
   });
 }
 export async function deleteAccount(db: Database, userId: string, id: string, version: number) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const account = await ownedAccount(tx, userId, id, true);
     if (account.version !== version) throw new DomainError('La cuenta cambió en otro dispositivo. Actualizá antes de eliminar.', 409);
     const references = await Promise.all([
@@ -80,7 +81,7 @@ export async function deleteAccount(db: Database, userId: string, id: string, ve
   });
 }
 export async function createExpense(db: Database, userId: string, input: ExpenseInput) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const existing = await existingMovement(tx, userId, input.id); if (existing) return verifyRetry(existing, input, 'expense');
     const account = await ownedAccount(tx, userId, input.accountId);
     const movement = { ...baseMovement(userId, input, account.currency), category: input.category, emoji: input.emoji };
@@ -88,7 +89,7 @@ export async function createExpense(db: Database, userId: string, input: Expense
   });
 }
 export async function editExpense(db: Database, userId: string, id: string, input: ExpenseInput & { version: number }) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const existing = await existingMovement(tx, userId, id);
     if (!existing || existing.voided) throw new DomainError('No se encontró el gasto.', 404);
     if (existing.version !== input.version) throw new DomainError('El gasto cambió. Actualizá antes de volver a editar.', 409);
@@ -106,7 +107,7 @@ export async function editExpense(db: Database, userId: string, id: string, inpu
   });
 }
 export async function createIncome(db: Database, userId: string, input: { id: string; concept: string; accountId: string; amount: number; date: string; notes: string }) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const existing = await existingMovement(tx, userId, input.id); if (existing) return verifyRetry(existing, input, 'income');
     const account = await ownedAccount(tx, userId, input.accountId);
     if (account.type === 'credit') throw new DomainError('Elegí un banco, billetera o efectivo para registrar el ingreso.');
@@ -114,7 +115,7 @@ export async function createIncome(db: Database, userId: string, input: { id: st
   });
 }
 export async function voidMovement(db: Database, userId: string, id: string, version: number) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const movement = await existingMovement(tx, userId, id);
     if (!movement) throw new DomainError('No se encontró el movimiento.', 404);
     if (movement.voided) return movement;
@@ -136,7 +137,7 @@ export async function voidMovement(db: Database, userId: string, id: string, ver
   });
 }
 export async function createRecurring(db: Database, userId: string, input: RecurringInput) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     await ownedAccount(tx, userId, input.accountId);
     const [existing] = await tx.select().from(s.recurring).where(eq(s.recurring.id, input.id));
     if (existing) { if (existing.userId !== userId) throw new DomainError('Identificador no disponible.', 409); return existing; }
@@ -144,7 +145,7 @@ export async function createRecurring(db: Database, userId: string, input: Recur
   });
 }
 export async function updateRecurring(db: Database, userId: string, id: string, input: RecurringInput & { active: boolean; version: number }) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const [rule] = await tx.select().from(s.recurring).where(and(eq(s.recurring.id, id), eq(s.recurring.userId, userId), eq(s.recurring.deleted, false)));
     if (!rule) throw new DomainError('No se encontró el recurrente.', 404);
     if (rule.version !== input.version) throw new DomainError('El recurrente cambió. Actualizá antes de editarlo.', 409);
@@ -160,7 +161,7 @@ export async function updateRecurring(db: Database, userId: string, id: string, 
   });
 }
 export async function deleteRecurring(db: Database, userId: string, id: string, version: number) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const [rule] = await tx.select().from(s.recurring).where(and(eq(s.recurring.id, id), eq(s.recurring.userId, userId)));
     if (!rule) throw new DomainError('No se encontró el recurrente.', 404);
     if (rule.deleted) return { ok: true };
@@ -188,7 +189,7 @@ async function materializeOccurrences(db: Executor, userId: string, throughMonth
   for (let i = 0; i < values.length; i += 40) await db.insert(s.occurrences).values(values.slice(i, i + 40)).onConflictDoNothing();
 }
 export async function chargeOccurrence(db: Database, userId: string, occurrenceId: string, input: { id: string; date: string; amount?: number }) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const [period] = await tx.select().from(s.occurrences).where(and(eq(s.occurrences.id, occurrenceId), eq(s.occurrences.userId, userId)));
     if (!period) throw new DomainError('No se encontró el período.', 404);
     if (period.status === 'paid') return period;
@@ -208,7 +209,7 @@ export async function skipOccurrence(db: Database, userId: string, id: string) {
   return changed[0];
 }
 export async function createPlan(db: Database, userId: string, input: PlanInput) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     await ownedAccount(tx, userId, input.accountId);
     const [existing] = await tx.select().from(s.plans).where(eq(s.plans.id, input.id));
     if (existing) { if (existing.userId !== userId) throw new DomainError('Identificador no disponible.', 409); return existing; }
@@ -220,7 +221,7 @@ export async function createPlan(db: Database, userId: string, input: PlanInput)
   });
 }
 export async function chargeInstallment(db: Database, userId: string, id: string, input: { id: string; date: string }) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const [installment] = await tx.select().from(s.installments).where(and(eq(s.installments.id, id), eq(s.installments.userId, userId)));
     if (!installment) throw new DomainError('No se encontró la cuota.', 404);
     if (installment.status === 'charged') return installment;
@@ -235,7 +236,7 @@ export async function chargeInstallment(db: Database, userId: string, id: string
   });
 }
 export async function cancelPlan(db: Database, userId: string, id: string, version: number) {
-  return db.transaction(async (tx) => {
+  return timedTransaction(db, async (tx) => {
     const [plan] = await tx.select().from(s.plans).where(and(eq(s.plans.id, id), eq(s.plans.userId, userId)));
     if (!plan) throw new DomainError('No se encontró la compra.', 404);
     if (plan.version !== version) throw new DomainError('La compra cambió. Actualizá antes de cancelar.', 409);
@@ -245,11 +246,12 @@ export async function cancelPlan(db: Database, userId: string, id: string, versi
   });
 }
 export async function getSnapshot(db: Database, userId: string, month: string): Promise<Snapshot> {
-  await db.transaction(async (tx) => {
+  return timed('snapshot', async () => {
+  await timed('materialize', () => db.transaction(async (tx) => {
     await initializeCategories(tx, userId);
     await materializeOccurrences(tx, userId, month > today().slice(0, 7) ? month : today().slice(0, 7));
-  });
-  const [accounts, movements, recurring, occurrences, plans, installments, categories] = await db.batch([
+  }));
+  const [accounts, movements, recurring, occurrences, plans, installments, categories] = await timed('db', () => db.batch([
     db.select().from(s.financeAccounts).where(eq(s.financeAccounts.userId, userId)),
     db.select().from(s.movements).where(eq(s.movements.userId, userId)),
     db.select().from(s.recurring).where(and(eq(s.recurring.userId, userId), eq(s.recurring.deleted, false))),
@@ -257,8 +259,9 @@ export async function getSnapshot(db: Database, userId: string, month: string): 
     db.select().from(s.plans).where(eq(s.plans.userId, userId)),
     db.select().from(s.installments).where(eq(s.installments.userId, userId)),
     db.select().from(s.categories).where(eq(s.categories.userId, userId)),
-  ]);
+  ]));
   return { accounts, movements, recurring, occurrences, plans, installments, categories };
+  });
 }
 export async function accountHistory(db: Database, userId: string, id: string) {
   await ownedAccount(db, userId, id, true);

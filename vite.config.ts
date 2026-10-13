@@ -69,14 +69,14 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 5173,
       strictPort: true,
-      proxy: { "/api": "http://127.0.0.1:3001" },
+      proxy: { "/api": process.env.TRACK_IT_TEST_API_ORIGIN || "http://127.0.0.1:3001" },
       allowedHosts,
     },
     preview: {
       host: "127.0.0.1",
       port: 5173,
       strictPort: true,
-      proxy: { "/api": "http://127.0.0.1:3001" },
+      proxy: { "/api": process.env.TRACK_IT_TEST_API_ORIGIN || "http://127.0.0.1:3001" },
       allowedHosts,
     },
     test: {
