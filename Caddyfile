@@ -1,4 +1,4 @@
-no-gastes-de-mas.duckdns.org {
+track-it-26.duckdns.org {
     encode zstd gzip
 
     handle /api/* {
