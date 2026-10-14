@@ -33,6 +33,8 @@ export const app = new Hono<Env>()
 app.use("/api/*", async (c, next) => withTimings(async () => {
   c.header("Cache-Control", "no-store")
   await timed("total", next)
+  // Auth handlers can return their own Response and replace prepared headers.
+  c.header("Cache-Control", "no-store")
   c.header("Server-Timing", timingHeader())
 }))
 app.use("/api/*", secureHeaders())

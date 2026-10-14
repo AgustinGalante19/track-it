@@ -22,6 +22,9 @@ test('production worker precaches lazy styles and never financial responses', as
     expect(response.ok()).toBe(true);
     expect(response.headers()['content-type']).toMatch(url.endsWith('.css') ? /text\/css/ : /javascript/);
   }
+  const manifest = await page.request.get('/manifest.webmanifest');
+  expect(manifest.ok()).toBe(true);
+  expect(manifest.headers()['content-type']).toMatch(/json/);
   await context.setOffline(true);
   const offline = await page.evaluate(async () => {
     const shell = await fetch('/index.html');

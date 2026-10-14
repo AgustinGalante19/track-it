@@ -13,6 +13,7 @@ function request(path: string, cookie = ownerCookie, method = 'GET', input?: unk
 async function signUp(email: string) {
   const response = await request('/auth/sign-up/email', '', 'POST', { email, username: email.split('@')[0], name: 'Persona de prueba', password: 'PruebaLocal2026!' });
   expect(response.status).toBe(200);
+  expect(response.headers.get('Cache-Control')).toBe('no-store');
   const cookies = response.headers.getSetCookie();
   expect(cookies.some((cookie) => /HttpOnly/i.test(cookie))).toBe(true);
   return cookies.map((cookie) => cookie.split(';')[0]).join('; ');
