@@ -7,7 +7,8 @@ RUN pnpm install --frozen-lockfile
 
 FROM base AS build
 COPY . .
-RUN pnpm build
+ARG TRACK_IT_BUILD_ID
+RUN TRACK_IT_BUILD_ID="$TRACK_IT_BUILD_ID" pnpm build
 
 FROM base AS api
 ENV NODE_ENV=production
@@ -23,4 +24,6 @@ CMD ["node", "node_modules/tsx/dist/cli.mjs", "server/index.ts"]
 FROM caddy:2-alpine AS web
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
+RUN --mount=type=bind,source=.,target=/context,readonly \
+    if [ -d /context/.release-assets ]; then mkdir -p /srv/assets && cp -rn /context/.release-assets/. /srv/assets/; fi
 
