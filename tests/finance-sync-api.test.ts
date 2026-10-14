@@ -125,7 +125,7 @@ describe('transactional synchronization matrix', () => {
     const hiddenVoid = await sync(`/movements/${charge.id}/void`, 'POST', { version: (await snapshot()).movements.find((row) => row.id === charge.id)!.version });
     expect(hiddenVoid.changes.collections.occurrences).toBeUndefined();
     expect((await snapshot()).occurrences).toEqual([]);
-    expect((await request(`/accounts/${bank}?sync=1`, 'DELETE', { version: (await snapshot()).accounts.find((row) => row.id === bank)!.version })).status).toBe(400);
+    await sync(`/accounts/${bank}`, 'DELETE', { version: (await snapshot()).accounts.find((row) => row.id === bank)!.version });
   }, 30_000);
   it('initializes category defaults in the same sync response and preserves the legacy API', async () => {
     const response = await request('/categories?sync=1', 'POST', { name: 'PCACHE-New', emoji: 'C', budgetArs: 0, budgetUsd: 0 }, other);

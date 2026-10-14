@@ -27,7 +27,7 @@ export function AccountsPage() {
   function remove(account: FinanceAccount) {
     confirm({
       title: `¿Eliminar ${account.name}?`,
-      description: 'Se eliminará de forma permanente. Solo se pueden eliminar cuentas sin movimientos, cuotas ni recurrentes. Si tiene registros, archivala para conservar su historial.',
+      description: 'Se eliminarán esta cuenta y sus movimientos, cuotas y recurrentes asociados. Las transferencias antiguas vinculadas también desaparecerán del historial de la otra cuenta. Esta acción no se puede deshacer.',
       action: () => mutate(`/accounts/${account.id}`, { version: account.version }, 'DELETE'),
       success: 'Cuenta eliminada.', destructive: true,
     });
@@ -60,6 +60,6 @@ export function AccountsPage() {
         </div>
       </article>;
     })}</div> : <div className="list-surface empty-state"><span className="empty-icon" aria-hidden="true"><Wallet size={30} /></span><h3>{search ? 'No encontramos esa cuenta' : archived ? 'No tenés cuentas archivadas' : 'Tu primera cuenta, el primer paso'}</h3><p>{search ? 'Probá con otro nombre o cambiá de pestaña.' : archived ? 'Las cuentas que archives aparecerán acá con su historial.' : 'Agregá un banco, billetera, tarjeta o efectivo para empezar a registrar tus gastos.'}</p>{!search && !archived && <Button variant="outline" onClick={() => open({ type: 'account' })}><Plus size={16} />Crear mi primera cuenta</Button>}</div>}
-    <p className="muted small accounts-footnote">Archivá las cuentas que ya no usás para conservar su historial. Podés eliminar las que todavía no tienen registros.</p>
+    <p className="muted small accounts-footnote">Archivá las cuentas que ya no usás para conservar su historial. También podés eliminarlas definitivamente junto con sus registros asociados.</p>
   </>;
 }

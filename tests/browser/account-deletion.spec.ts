@@ -1,0 +1,33 @@
+import { test, expect } from '@playwright/test';
+import { fixture } from './fixtures';
+import { today } from '../../shared/format';
+
+test('permanent account deletion can be cancelled and removes all dependent records on confirmation', async ({ page }) => {
+  const { bank, credit } = await fixture(page);
+  await page.goto(`/cuentas?mes=${today().slice(0, 7)}`);
+  await page.getByRole('button', { name: 'Eliminar PCACHE-Bank', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '¿Eliminar PCACHE-Bank?', exact: true });
+  await expect(dialog).toContainText('movimientos, cuotas y recurrentes');
+  await expect(dialog).toContainText('no se puede deshacer');
+  await dialog.getByRole('button', { name: 'Volver', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'PCACHE-Bank', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Eliminar PCACHE-Bank', exact: true }).click();
+  const response = page.waitForResponse((r) => r.request().method() === 'DELETE' && r.url().includes(`/accounts/${bank}`));
+  await dialog.getByRole('button', { name: 'Confirmar', exact: true }).click();
+  const result = await (await response).json();
+  expect(result.changes.collections.movements.removes).toHaveLength(30);
+  expect(result.changes.collections.recurring.removes).toHaveLength(2);
+  expect(result.changes.historyAccountIds).toContain(bank);
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('article', { name: 'PCACHE-Bank', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('article', { name: 'PCACHE-Credit', exact: true })).toBeVisible();
+  await page.goto(`/?mes=${today().slice(0, 7)}`);
+  await expect(page.locator('.stat-accent p')).toHaveText('0 gastos registrados');
+  await page.reload();
+  const data = (await (await page.request.get(`/api/bootstrap?month=${today().slice(0, 7)}`)).json()).data;
+  expect(data.accounts.some((a: { id: string }) => a.id === bank)).toBe(false);
+  expect(data.accounts.some((a: { id: string }) => a.id === credit)).toBe(true);
+  expect(data.recurring).toEqual([]);
+  expect(data.movements).toEqual([]);
+  expect(data.plans).toHaveLength(1);
+});

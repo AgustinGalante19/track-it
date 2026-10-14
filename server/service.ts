@@ -1,6 +1,7 @@
+import { accountDeletionScope } from './account-deletion';
 import { randomUUID } from 'node:crypto';
 import { timed, timedTransaction } from './timing';
-import { and, eq, getTableColumns, gt, lte, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, gt, inArray, lte, sql } from 'drizzle-orm';
 import type { Database } from './db/client';
 import * as s from './db/schema';
 import { addMonth, monthDate, splitInstallments, today, MAX_MONEY } from '../shared/domain';
@@ -72,14 +73,16 @@ export async function deleteAccount(db: Database, userId: string, id: string, ve
 export async function deleteAccountInTransaction(tx: Executor, userId: string, id: string, version: number) {
   const account = await ownedAccount(tx, userId, id, true);
   if (account.version !== version) throw new DomainError('La cuenta cambió en otro dispositivo. Actualizá antes de eliminar.', 409);
-  const references = await Promise.all([
-    tx.select({ id: s.movements.id }).from(s.movements).where(sql`${s.movements.accountId} = ${id} OR ${s.movements.destinationId} = ${id}`).limit(1),
-    tx.select({ id: s.postings.id }).from(s.postings).where(eq(s.postings.accountId, id)).limit(1),
-    tx.select({ id: s.recurring.id }).from(s.recurring).where(eq(s.recurring.accountId, id)).limit(1),
-    tx.select({ id: s.occurrences.id }).from(s.occurrences).where(eq(s.occurrences.accountId, id)).limit(1),
-    tx.select({ id: s.plans.id }).from(s.plans).where(eq(s.plans.accountId, id)).limit(1),
-  ]);
-  if (references.some((rows) => rows.length)) throw new DomainError('Esta cuenta tiene movimientos, cuotas o recurrentes. Archivala para conservar su historial.');
+  const scope = await accountDeletionScope(tx, userId, id);
+  if (scope.retainedOccurrences.length) await tx.update(s.occurrences).set({ movementId: null, status: 'pending' }).where(and(eq(s.occurrences.userId, userId), inArray(s.occurrences.id, scope.retainedOccurrences)));
+  if (scope.retainedInstallments.length) await tx.update(s.installments).set({ movementId: null, status: 'pending' }).where(and(eq(s.installments.userId, userId), inArray(s.installments.id, scope.retainedInstallments)));
+  await tx.delete(s.occurrences).where(and(eq(s.occurrences.userId, userId), inArray(s.occurrences.id, scope.occurrences)));
+  await tx.delete(s.installments).where(and(eq(s.installments.userId, userId), inArray(s.installments.id, scope.installments)));
+  await tx.delete(s.postings).where(inArray(s.postings.movementId, scope.movements));
+  await tx.delete(s.movements).where(and(eq(s.movements.userId, userId), inArray(s.movements.id, scope.movements)));
+  await tx.delete(s.recurring).where(and(eq(s.recurring.userId, userId), inArray(s.recurring.id, scope.recurring)));
+  await tx.delete(s.plans).where(and(eq(s.plans.userId, userId), inArray(s.plans.id, scope.plans)));
+  await tx.update(s.financeAccounts).set({ version: sql`${s.financeAccounts.version} + 1` }).where(and(eq(s.financeAccounts.userId, userId), inArray(s.financeAccounts.id, scope.accounts.filter((accountId) => accountId !== id))));
   await tx.delete(s.financeAccounts).where(and(eq(s.financeAccounts.id, id), eq(s.financeAccounts.userId, userId)));
   return { ok: true };
 }

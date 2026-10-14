@@ -147,3 +147,10 @@ Para desplegar esta versión, aplicar primero `pnpm db:migrate` con la migració
 opcionales `icon_key` no eliminan los emojis anteriores. La API, sincronización y
 respaldos transportan `iconKey`; los respaldos anteriores siguen siendo válidos.
 No hace falta reescribir el historial: la representación se resuelve al mostrarlo.
+
+
+La eliminación definitiva de una cuenta está disponible aunque tenga historial.
+La confirmación informa que borra movimientos, pagos, cuotas y recurrentes
+asociados; las transferencias antiguas vinculadas se retiran de ambos historiales.
+El borrado es transaccional y sincroniza los registros eliminados y los resúmenes.
+Archivar sigue disponible para conservar el historial. Las categorías se conservan.

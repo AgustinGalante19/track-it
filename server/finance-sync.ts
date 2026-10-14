@@ -1,3 +1,4 @@
+import { accountDeletionScope } from './account-deletion';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { Database } from './db/client';
@@ -55,6 +56,17 @@ export async function synchronize<T>(db: Database, userId: string, operation: Sy
       if (collection === 'plans' && key === 'installments' && id) conditions.push(eq(s.installments.planId, id));
       if (categoryCreate && key === 'categories') conditions.push(sql`1 = 1`);
       return or(...conditions);
+    }
+    if (operation === 'deleteAccount' && id) {
+      // Scope only an owned account, including both sides of legacy transfers.
+      if ((await read('accounts', eq(s.financeAccounts.id, id))).length) {
+        const scope = await accountDeletionScope(tx, userId, id);
+        for (const key of ['accounts', 'movements', 'recurring', 'plans', 'occurrences', 'installments'] as const) {
+          for (const rowId of scope[key]) ids[key].add(rowId);
+        }
+        for (const rowId of scope.retainedOccurrences) ids.occurrences.add(rowId);
+        for (const rowId of scope.retainedInstallments) ids.installments.add(rowId);
+      }
     }
     // Reassignment keeps the old IDs, so canonical rereads use IDs after names change.
     if (collection === 'categories' && id) {
