@@ -6,7 +6,7 @@ import type { Snapshot, Currency, Movement, Recurring, Occurrence, Installment, 
 export type Composer =
   | { type: 'expense'; movement?: Movement; duplicate?: boolean }
   | { type: 'plan' }
-  | { type: 'recurring'; rule?: Recurring }
+  | { type: 'recurring'; rule?: Recurring; preset?: import('../shared/icons').QuickService }
   | { type: 'income'; accountId?: string }
   | { type: 'account'; account?: FinanceAccount }
   | { type: 'charge'; occurrence?: Occurrence; installment?: Installment };

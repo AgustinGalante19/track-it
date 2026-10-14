@@ -1,3 +1,5 @@
+import { CategoryIcon, VisualIcon } from './components/VisualIcon'
+import { quickServices, recurringIcon } from '../shared/icons'
 import { useCallback, useState, useSyncExternalStore } from "react"
 import { Link, useParams } from "react-router-dom"
 import { financeStore } from './lib/finance-client'
@@ -123,9 +125,7 @@ export function MovementRow({
   const [actionsOpen, setActionsOpen] = useState(false)
   return (
     <div className={`movement-row ${movement.voided ? "row-voided" : ""}`}>
-      <span className='row-emoji' aria-hidden='true'>
-        {movement.emoji}
-      </span>
+      <CategoryIcon category={data.categories.find((c) => c.name === movement.category)} />
       <div className='row-content'>
         <strong>
           {movementTitle(movement)}
@@ -266,9 +266,7 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
   return (
     <div className='plan-item'>
       <div className='movement-row'>
-        <span className='row-emoji' aria-hidden='true'>
-          {plan.emoji}
-        </span>
+        <CategoryIcon category={data.categories.find((c) => c.name === plan.category)} />
         <button
           className='row-content plan-trigger'
           onClick={() => setExpanded(!expanded)}
@@ -469,7 +467,7 @@ export function ExpensesPage() {
             .filter((a) => a.currency === currency)
             .map((a) => (
               <option value={a.id} key={a.id}>
-                {a.emoji} {a.name}
+                {a.name}
               </option>
             ))}
         </select>
@@ -486,8 +484,6 @@ export function ExpensesPage() {
             ]),
           ].map((name) => (
             <option key={name} value={name}>
-              {data.categories.find((category) => category.name === name)
-                ?.emoji || "🏷️"}{" "}
               {name}
             </option>
           ))}
@@ -568,7 +564,7 @@ export function RecurringPage() {
     return (
       <div className='paused-row' key={rule.id}>
         <span>
-          {rule.emoji} {rule.name}
+          <VisualIcon iconKey={recurringIcon(rule, data.categories.find((c) => c.name === rule.category))} small /> {rule.name}
         </span>
         <div className='inline-actions'>
           {rule.active && (
@@ -625,7 +621,11 @@ export function RecurringPage() {
         </p>
         <SearchBox value={search} onChange={setSearch} />
       </div>
-      <div className='list-surface'>
+      <section className='quick-services' aria-label='Agregar servicios rápidamente'>
+        <h2>Agregar rápido</h2>
+        <div className='quick-service-list'>{quickServices.map((preset) => <button key={preset.name} disabled={!data.accounts.some((a) => !a.archived)} onClick={() => open({ type: 'recurring', preset })}><VisualIcon iconKey={preset.iconKey} small />{preset.name}<Plus size={14} aria-hidden='true' /></button>)}</div>
+      </section>
+      <div className='list-surface recurring-list'>
         {periods.map((period) => {
           const account = accounts.get(period.accountId)!
           const rule = data.recurring.find((r) => r.id === period.ruleId)!
@@ -634,9 +634,7 @@ export function RecurringPage() {
           return (
             <div className='recurring-item' key={period.id}>
               <div className='movement-row'>
-                <span className='row-emoji' aria-hidden='true'>
-                  {period.emoji}
-                </span>
+                <VisualIcon iconKey={recurringIcon(rule, data.categories.find((c) => c.name === rule.category))} />
                 <div className='row-content'>
                   <strong>{period.name}</strong>
                   <p>
@@ -692,6 +690,7 @@ export function RecurringPage() {
                   {rule.active ? <Pause size={13} /> : <Play size={13} />}
                   {rule.active ? "Pausar" : "Reanudar"}
                 </button>
+                <details className='recurring-overflow'><summary aria-label={`Más acciones de ${period.name}`}><MoreHorizontal size={20} /></summary><div className='row-menu-content'>
                 {period.status === "pending" && (
                   <button
                     onClick={() =>
@@ -715,6 +714,7 @@ export function RecurringPage() {
                   <Trash2 size={13} />
                   Eliminar recurrente
                 </button>
+                </div></details>
               </div>
             </div>
           )

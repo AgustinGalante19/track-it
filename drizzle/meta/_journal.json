@@ -50,6 +50,13 @@
       "when": 1791897783333,
       "tag": "0006_account-color",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792016805858,
+      "tag": "0007_spicy_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }

@@ -142,7 +142,7 @@ it('permite guardar un gasto con el concepto vacío', async () => {
   await waitFor(() => expect(send).toHaveBeenCalledWith('/expenses', expect.objectContaining({ concept: '', amount: 50000 }), 'POST'));
 });
 
-it('muestra un título discreto y permite editar y duplicar un gasto sin concepto', async () => {
+it('usa la categoría como título y permite editar y duplicar un gasto sin concepto', async () => {
   const movement: Movement = {
     id: '23456789-1234-4234-8234-123456789012', userId: 'owner', kind: 'expense',
     concept: '', date: today(), amount: 10000, currency: 'ARS', accountId: bank.id,
@@ -154,15 +154,15 @@ it('muestra un título discreto y permite editar y duplicar un gasto sin concept
   await show(`/cuentas/${bank.id}`, [bank], [{
     posting: { id: 'posting', movementId: movement.id, accountId: bank.id, delta: -10000 }, movement,
   }]);
-  expect((await screen.findByText('Gasto sin concepto')).className).toBe('muted');
-  fireEvent.click(screen.getByRole('button', { name: 'Opciones de Gasto sin concepto' }));
+  expect(await screen.findByText('Sin categoría')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Opciones de Sin categoría' }));
   fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
   let dialog = await screen.findByRole('dialog', { name: 'Editar gasto' });
   expect((within(dialog).getByLabelText('Concepto') as HTMLInputElement).value).toBe('');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith(`/expenses/${movement.id}`, expect.objectContaining({ concept: '', version: 1 }), 'PUT'));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  fireEvent.click(screen.getByRole('button', { name: 'Opciones de Gasto sin concepto' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Opciones de Sin categoría' }));
   fireEvent.click(screen.getByRole('button', { name: 'Duplicar' }));
   dialog = await screen.findByRole('dialog', { name: 'Duplicar gasto' });
   expect((within(dialog).getByLabelText('Concepto') as HTMLInputElement).value).toBe('');

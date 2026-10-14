@@ -1,3 +1,5 @@
+import { CategoryIcon, IconPicker } from './components/VisualIcon';
+import { categoryIcon, recurringIconChoice, type IconKey } from '../shared/icons';
 import { createContext, useContext, useRef, useState } from 'react';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { z } from 'zod';
@@ -25,9 +27,10 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
   const movement = composer.type === 'expense' ? composer.movement : undefined;
   const editingMovement = movement && !(composer.type === 'expense' && composer.duplicate) ? movement : undefined;
   const rule = composer.type === 'recurring' ? composer.rule : undefined;
-  const initialCategory = movement?.category || rule?.category || data.categories.find((c) => c.name === 'General')?.name || data.categories[0]?.name || 'Sin categoría';
+  const preset = composer.type === 'recurring' ? composer.preset : undefined;
+  const [iconKey, setIconKey] = useState<IconKey>(() => rule ? recurringIconChoice(rule) : preset?.iconKey || 'category');
+  const initialCategory = (preset && data.categories.find((c) => c.name === preset.category)?.name) || movement?.category || rule?.category || data.categories.find((c) => c.name === 'General')?.name || data.categories[0]?.name || 'Sin categoría';
   const categoryEmoji = (name: string) => data.categories.find((category) => category.name === name)?.emoji || '🛍️';
-  const [customEmoji, setCustomEmoji] = useState(!!rule && rule.emoji !== categoryEmoji(rule.category));
   const occurrence = composer.type === 'charge' ? composer.occurrence : undefined;
   const installment = composer.type === 'charge' ? composer.installment : undefined;
   const plan = data.plans.find((p) => p.id === installment?.planId);
@@ -36,11 +39,11 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
   const eligibleAccounts = accounts.filter((a) => a.currency === currency && (composer.type !== 'income' || a.type !== 'credit'));
   const firstAccount = eligibleAccounts.find((a) => a.id === localStorage.getItem('lastAccount')) || eligibleAccounts[0] || accounts.find((a) => a.type !== 'credit') || accounts[0];
   const { register, handleSubmit, watch, setValue, setError, formState: { errors, isSubmitting } } = useForm<Values>({ defaultValues: {
-    concept: movement?.concept || rule?.name || '', amount: movement ? moneyInput(movement.amount) : occurrence ? moneyInput(occurrence.amount) : installment ? moneyInput(installment.amount) : rule ? moneyInput(rule.amount) : '',
+    concept: movement?.concept || rule?.name || preset?.name || '', amount: movement ? moneyInput(movement.amount) : occurrence ? moneyInput(occurrence.amount) : installment ? moneyInput(installment.amount) : rule ? moneyInput(rule.amount) : '',
     accountId: movement?.accountId || rule?.accountId || chargeAccountId || (composer.type === 'income' ? composer.accountId : undefined) || firstAccount?.id || '',
     date: movement?.date || today(), category: initialCategory, emoji: movement?.emoji || rule?.emoji || account?.emoji || categoryEmoji(initialCategory),
     notes: movement?.notes || '', payment: composer.type === 'plan' ? 'installments' : 'single', count: '6', historicalCount: '0', firstDate: today(),
-    kind: rule?.kind || 'subscription', dueDay: String(rule?.dueDay || Number(today().slice(8))), startDate: rule?.startDate || `${today().slice(0, 7)}-01`,
+    kind: rule?.kind || preset?.kind || 'subscription', dueDay: String(rule?.dueDay || Number(today().slice(8))), startDate: rule?.startDate || `${today().slice(0, 7)}-01`,
     name: account?.name || '', type: account?.type || 'bank', currency: account?.currency || currency,
   } });
   const values = watch(); const source = accounts.find((a) => a.id === values.accountId);
@@ -66,7 +69,7 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
       } else if (composer.type === 'income') {
         await save('/incomes', incomeInputSchema.parse({ id, concept: value.concept, accountId: value.accountId, amount: cents(value.amount, 'amount'), date: value.date, notes: value.notes }));
       } else if (composer.type === 'recurring') {
-        const payload = recurringInputSchema.parse({ id: rule?.id || id, name: value.concept, kind: value.kind, accountId: value.accountId, amount: cents(value.amount, 'amount'), category: value.category, emoji: value.emoji, dueDay: Number(value.dueDay), startDate: value.startDate });
+        const payload = recurringInputSchema.parse({ id: rule?.id || id, name: value.concept, kind: value.kind, iconKey, accountId: value.accountId, amount: cents(value.amount, 'amount'), category: value.category, emoji: value.emoji, dueDay: Number(value.dueDay), startDate: value.startDate });
         await save(rule ? `/recurring/${rule.id}` : '/recurring', rule ? { ...payload, active: rule.active, version: rule.version } : payload, rule ? 'PUT' : 'POST');
       } else if (isPlan) {
         await save('/plans', planInputSchema.parse({ id, name: value.concept, accountId: value.accountId, total: cents(value.amount, 'amount'), category: value.category, emoji: value.emoji, count: Number(value.count), firstDate: value.firstDate, historicalCount: Number(value.historicalCount) }));
@@ -109,14 +112,12 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
       {isPlan && <><Field name="count" label="Cantidad de cuotas"><input {...register('count')} type="number" min={2} max={60} required /></Field><Field name="firstDate" label="Fecha de la primera cuota"><input {...register('firstDate')} type="date" required /></Field>{estimate.length > 0 && <p className="form-note span-2">{estimate.length} cuotas de {formatMoney(estimate[0], amountCurrency)}{estimate[0] !== estimate.at(-1) ? `; última de ${formatMoney(estimate.at(-1)!, amountCurrency)}` : ''}. Crear la compra organiza los pagos; cada cuota se registra al confirmarla.</p>}</>}
       {composer.type === 'recurring' && <><Field name="kind" label="Tipo"><select {...register('kind')}><option value="subscription">Suscripción</option><option value="service">Servicio</option></select></Field><Field name="dueDay" label="Día mensual de vencimiento"><input {...register('dueDay')} type="number" min={1} max={31} required /></Field>{!rule && <Field name="startDate" label="Comienza a partir de" className="span-2"><input {...register('startDate')} type="date" required /></Field>}<p className="form-note span-2">{rule ? 'Los cambios se aplican a los meses futuros. Los períodos actuales y anteriores conservan sus datos.' : 'El importe se confirma cada mes. No se registra ningún pago automáticamente.'}</p></>}
       {!isPlan && composer.type !== 'recurring' && <Field name="date" label="Fecha" className="span-2"><input {...register('date')} type="date" required max={today()} /></Field>}
-      {['expense', 'plan', 'recurring'].includes(composer.type) && <Field name="category" label="Categoría" className="span-2" hint="Administrá tus categorías y sus emojis en Categorías."><select {...register('category')} onChange={(e) => { setValue('category', e.target.value); if (!customEmoji) setValue('emoji', categoryEmoji(e.target.value)); }}>
-        {!data.categories.some((category) => category.name === values.category) && <option value={values.category}>{values.emoji} {values.category}</option>}
-        {data.categories.map((category) => <option key={category.id} value={category.name}>{category.emoji} {category.name}</option>)}
+      {['expense', 'plan', 'recurring'].includes(composer.type) && <Field name="category" label="Categoría" className="span-2" hint="Administrá los íconos desde Categorías."><select {...register('category')} onChange={(e) => { setValue('category', e.target.value); setValue('emoji', categoryEmoji(e.target.value)); }}>
+        {!data.categories.some((category) => category.name === values.category) && <option value={values.category}>{values.category}</option>}
+        {data.categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
       </select></Field>}
-      {composer.type === 'recurring' && <details className="more-options span-2" open={customEmoji}><summary>Personalizar emoji del recurrente</summary><div className="form-grid">
-        <Field name="emoji" label="Emoji del servicio" className="span-2" hint="Opcional: usá un ícono propio para distinguir este servicio."><input {...register('emoji')} onChange={(e) => { setValue('emoji', e.target.value); setCustomEmoji(true); }} maxLength={16} /></Field>
-        <Button type="button" variant="ghost" onClick={() => { setValue('emoji', categoryEmoji(values.category)); setCustomEmoji(false); }}>Usar emoji de la categoría</Button>
-      </div></details>}
+      {['expense', 'plan'].includes(composer.type) && <div className="icon-preview span-2"><CategoryIcon category={data.categories.find((c) => c.name === values.category)} /><span>Ícono de {values.category}</span></div>}
+      {composer.type === 'recurring' && <IconPicker value={iconKey} onChange={setIconKey} brands inherited={categoryIcon(data.categories.find((c) => c.name === values.category))} disabled={isSubmitting} />}
       {composer.type !== 'recurring' && <details className="more-options span-2" open={!!movement?.notes}><summary>Más opciones</summary><div className="form-grid">{isPlan && <Field name="historicalCount" label="Cuotas ya pagadas" className="span-2" hint="Para compras ya iniciadas. Se marcan como pagadas anteriormente y no generan nuevos gastos."><input {...register('historicalCount')} type="number" min={0} max={Number(values.count) - 1} /></Field>}{!isPlan && <Field name="notes" label="Nota opcional" className="span-2"><textarea {...register('notes')} maxLength={500} rows={2} placeholder="Algo para recordar…" /></Field>}</div></details>}
     </>}
     {serverError && <p className="form-error span-2" role="alert">{serverError}</p>}

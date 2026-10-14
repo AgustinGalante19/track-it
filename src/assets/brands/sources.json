@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Netflix",
+    "hex": "E50914",
+    "source": "https://brand.netflix.com/en/assets/logos",
+    "guidelines": "https://brand.netflix.com/en/assets/logos"
+  },
+  {
+    "title": "Spotify",
+    "hex": "1ED760",
+    "source": "https://developer.spotify.com/documentation/general/design-and-branding/#using-our-logo",
+    "guidelines": "https://developer.spotify.com/documentation/general/design-and-branding/#using-our-logo"
+  },
+  {
+    "title": "YouTube",
+    "hex": "FF0000",
+    "source": "https://www.youtube.com/howyoutubeworks/resources/brand-resources/#logos-icons-and-colors",
+    "guidelines": "https://www.youtube.com/howyoutubeworks/resources/brand-resources/#logos-icons-and-colors"
+  }
+]

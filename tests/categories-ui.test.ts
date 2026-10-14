@@ -44,7 +44,7 @@ it('crea categorías con presupuestos en centavos y mantiene abierto el formular
   expect(refresh).not.toHaveBeenCalled();
   fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar categoría' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  expect(mutate).toHaveBeenLastCalledWith('/categories', { name: 'Vacaciones', emoji: '🏷️', budgetArs: 150025, budgetUsd: 2000 }, 'POST');
+  expect(mutate).toHaveBeenLastCalledWith('/categories', { name: 'Vacaciones', emoji: '🏷️', iconKey: 'general', budgetArs: 150025, budgetUsd: 2000 }, 'POST');
   expect(refresh).not.toHaveBeenCalled();
 });
 
@@ -55,7 +55,7 @@ it('edita por identificador y versión conservando el presupuesto de ambas moned
   const dialog = await screen.findByRole('dialog', { name: 'Editar categoría' });
   fireEvent.change(within(dialog).getByLabelText('Nombre'), { target: { value: 'Vivienda' } });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar categoría' }));
-  await waitFor(() => expect(mutate).toHaveBeenCalledWith(`/categories/${category.id}`, { name: 'Vivienda', emoji: category.emoji, budgetArs: 500000, budgetUsd: 10000, version: 3 }, 'PATCH'));
+  await waitFor(() => expect(mutate).toHaveBeenCalledWith(`/categories/${category.id}`, { name: 'Vivienda', emoji: category.emoji, iconKey: 'home', budgetArs: 500000, budgetUsd: 10000, version: 3 }, 'PATCH'));
 });
 
 it('requiere confirmar la eliminación y permite elegir la categoría de destino', async () => {

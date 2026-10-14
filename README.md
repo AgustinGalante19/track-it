@@ -131,3 +131,19 @@ Verificación local con build de producción y Chrome a 390 × 844: una solicitu
 Para probarlo en el teléfono, desplegá frontend y API juntos, aceptá **Actualizar app** si aparece y volvé a abrir. En DevTools dejá desmarcado **Disable cache** para comprobar el comportamiento habitual. Tras cargar una vez y activar la nueva versión, una recarga debe consultar `/api/bootstrap` y servir los recursos de la app desde el service worker. Una suspensión breve no debe repetir la consulta; después de un minuto se permite una actualización en segundo plano al regresar. Un navegador puede descartar una pestaña suspendida: en ese caso la app arranca de nuevo con archivos cacheados y una nueva consulta autenticada.
 
 Referencias de implementación: [revalidación de rutas en React Router](https://api.reactrouter.com/v7/interfaces/react-router.ShouldRevalidateFunctionArgs.html) y [precaché de recursos en Vite PWA](https://vite-pwa-org.netlify.app/guide/service-worker-precache).
+
+
+## Íconos de categorías y recurrentes
+
+Las categorías usan un catálogo local de Lucide con selector y búsqueda. Los gastos
+(incluidos pagos de recurrentes y cuotas) muestran siempre el ícono actual de su
+categoría. Los recurrentes permiten elegir un logo propio o heredar la categoría;
+los accesos rápidos abren el formulario sin crear pagos ni completar precios.
+YouTube, Spotify y Netflix incluyen SVG locales de Simple Icons; las fuentes,
+licencia y condiciones se conservan en `src/assets/brands/`.
+
+Para desplegar esta versión, aplicar primero `pnpm db:migrate` con la migración
+`0007_spicy_dreadnoughts`, desplegar el servidor y luego la interfaz. Las columnas
+opcionales `icon_key` no eliminan los emojis anteriores. La API, sincronización y
+respaldos transportan `iconKey`; los respaldos anteriores siguen siendo válidos.
+No hace falta reescribir el historial: la representación se resuelve al mostrarlo.

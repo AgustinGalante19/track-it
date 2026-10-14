@@ -1,3 +1,4 @@
+import { categoryIconSchema, recurringIconSchema } from './icons';
 import { z } from 'zod';
 import { MAX_MONEY, validDate } from './format';
 export { MAX_MONEY, validDate, parseMoney, moneyInput, formatMoney, splitInstallments, monthDate, addMonth, today } from './format';
@@ -14,7 +15,7 @@ const titleSchema = z.string().trim().min(1, 'Escribí un nombre.').max(80);
 const emojiSchema = z.string().trim().min(1).max(16);
 export const categoryInputSchema = z.object({
   name: titleSchema.refine((name) => name.toLocaleLowerCase('es') !== 'sin categoría', 'Elegí otro nombre; Sin categoría se usa para gastos sin asignar.'),
-  emoji: emojiSchema,
+  emoji: emojiSchema, iconKey: categoryIconSchema,
   budgetArs: signedMoneySchema.nonnegative().default(0),
   budgetUsd: signedMoneySchema.nonnegative().default(0),
 });
@@ -33,7 +34,7 @@ export const expenseInputSchema = z.object({
 });
 export const incomeInputSchema = z.object({ id: idSchema, concept: titleSchema, accountId: idSchema, amount: moneySchema, date: dateSchema, notes: z.string().trim().max(500).default('') });
 export const recurringInputSchema = z.object({
-  id: idSchema, name: titleSchema, kind: z.enum(['subscription', 'service']), emoji: emojiSchema,
+  id: idSchema, name: titleSchema, kind: z.enum(['subscription', 'service']), emoji: emojiSchema, iconKey: recurringIconSchema,
   category: titleSchema, accountId: idSchema, amount: moneySchema,
   dueDay: z.number().int().min(1).max(31), startDate: dateSchema,
 });

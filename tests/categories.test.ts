@@ -25,6 +25,19 @@ beforeEach(async () => {
 });
 afterEach(() => client.close());
 
+it('persiste iconos de categorías y recurrentes y los conserva al restaurar un respaldo', async () => {
+  const category = await categories.createCategory(db, 'owner', { ...input(), iconKey: 'travel' });
+  const account = await finance.createAccount(db, 'owner', { id: randomUUID(), name: 'Banco', type: 'bank', currency: 'ARS', emoji: 'B' });
+  await finance.createRecurring(db, 'owner', { id: randomUUID(), name: 'Spotify', kind: 'subscription', iconKey: 'spotify', emoji: 'R', category: category.name, accountId: account.id, amount: 10000, dueDay: 15, startDate: `${month}-01` });
+  const backup = await exportBackup(db, 'owner');
+  expect(backup.categories.find((c) => c.id === category.id)?.iconKey).toBe('travel');
+  expect(backup.recurring[0].iconKey).toBe('spotify');
+  await restoreBackup(db, 'other', backup);
+  const restored = await snapshot('other');
+  expect(restored.categories.find((c) => c.name === category.name)?.iconKey).toBe('travel');
+  expect(restored.recurring[0].iconKey).toBe('spotify');
+});
+
 it('aísla categorías y presupuestos; rechaza editar, eliminar o reasignar a categorías ajenas', async () => {
   const own = await categories.createCategory(db, 'owner', input());
   const foreign = await categories.createCategory(db, 'other', { ...input(), budgetArs: 99 });

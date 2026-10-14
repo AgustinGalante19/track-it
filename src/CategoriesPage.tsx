@@ -1,3 +1,5 @@
+import { CategoryIcon, IconPicker } from './components/VisualIcon';
+import { categoryIcon, type IconKey } from '../shared/icons';
 import { useState } from 'react';
 import { Edit3, LayoutGrid, Plus, Search, Table2, Tags, Trash2 } from 'lucide-react';
 import { categoryInputSchema, type Category } from '../shared/domain';
@@ -13,16 +15,17 @@ import './categories.css';
 function CategoryEditor({ category, onClose }: { category: Category | null; onClose: () => void }) {
   const { mutate, notify } = useFinance();
   const [name, setName] = useState(category?.name || '');
-  const [emoji, setEmoji] = useState(category?.emoji || '🏷️');
+  const emoji = category?.emoji || '🏷️';
+  const [iconKey, setIconKey] = useState<IconKey>(categoryIcon(category));
   const [ars, setArs] = useState(moneyInput(category?.budgetArs || 0));
   const [usd, setUsd] = useState(moneyInput(category?.budgetUsd || 0));
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
-  return <Dialog title={category ? 'Editar categoría' : 'Nueva categoría'} description="Elegí un nombre, un emoji y, si querés, un presupuesto mensual." onClose={() => { if (!busy) onClose(); }}>
+  return <Dialog title={category ? 'Editar categoría' : 'Nueva categoría'} description="Elegí un nombre, un ícono y, si querés, un presupuesto mensual." onClose={() => { if (!busy) onClose(); }}>
     <form onSubmit={async (event) => {
       event.preventDefault(); if (busy) return; setError('');
       const budgetArs = parseMoney(ars), budgetUsd = parseMoney(usd);
       if (budgetArs === null || budgetUsd === null) { setError('Ingresá presupuestos válidos, desde 0 y con hasta dos decimales.'); return; }
-      const parsed = categoryInputSchema.safeParse({ name, emoji, budgetArs, budgetUsd });
+      const parsed = categoryInputSchema.safeParse({ name, emoji, iconKey, budgetArs, budgetUsd });
       if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
       setBusy(true);
       try {
@@ -32,15 +35,16 @@ function CategoryEditor({ category, onClose }: { category: Category | null; onCl
     }}>
       <div className="dialog-body form-stack">
         <div className="category-name-fields">
-          <label className="field">Emoji<input value={emoji} onChange={(e) => setEmoji(e.target.value)} required maxLength={16} disabled={busy} /></label>
+
           <label className="field">Nombre<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Por ejemplo, Vivienda y hogar" required maxLength={80} disabled={busy} /></label>
         </div>
+        <IconPicker value={iconKey} onChange={setIconKey} disabled={busy} />
         <div className="category-budget-fields">
           <label className="field">Presupuesto mensual ARS<input inputMode="decimal" value={ars} onChange={(e) => setArs(e.target.value)} disabled={busy} /></label>
           <label className="field">Presupuesto mensual USD<input inputMode="decimal" value={usd} onChange={(e) => setUsd(e.target.value)} disabled={busy} /></label>
         </div>
         <p className="muted small">Dejá 0 si no querés fijar un presupuesto. Se aplica a todos los meses en cada moneda.</p>
-        {category && <p className="muted small">Al cambiar el nombre se actualizan sus gastos, cuotas y recurrentes. Los emojis de esos registros se conservan.</p>}
+        {category && <p className="muted small">Al cambiar el nombre se actualizan sus gastos, cuotas y recurrentes. El ícono elegido se muestra también en el historial.</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
       </div>
       <div className="dialog-actions"><Button variant="outline" type="button" disabled={busy} onClick={onClose}>Cancelar</Button><Button type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar categoría'}</Button></div>
@@ -61,7 +65,7 @@ function DeleteCategory({ category, onClose }: { category: Category; onClose: ()
       } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
     }}>
       <div className="dialog-body form-stack">
-        <label className="field">Reasignar gastos, cuotas y recurrentes a<select value={replacementId} onChange={(e) => setReplacementId(e.target.value)} disabled={busy}><option value="">Sin categoría</option>{data.categories.filter((c) => c.id !== category.id).map((c) => <option value={c.id} key={c.id}>{c.emoji} {c.name}</option>)}</select></label>
+        <label className="field">Reasignar gastos, cuotas y recurrentes a<select value={replacementId} onChange={(e) => setReplacementId(e.target.value)} disabled={busy}><option value="">Sin categoría</option>{data.categories.filter((c) => c.id !== category.id).map((c) => <option value={c.id} key={c.id}>{c.name}</option>)}</select></label>
         <p className="muted small">El presupuesto de esta categoría se elimina. El de la categoría de destino se conserva.</p>
         {error && <p className="form-error" role="alert">{error}</p>}
       </div>
@@ -84,7 +88,7 @@ export function CategoriesPage() {
     <Button variant="ghost" size="icon" aria-label={`Editar ${row.name}`} onClick={() => setEditor({ category: row.category })}><Edit3 size={16} /></Button>
     <Button variant="ghost" size="icon" aria-label={`Eliminar ${row.name}`} onClick={() => setDeleting(row.category)}><Trash2 size={16} /></Button>
   </div>;
-  const title = (row: CategorySummary) => <button className="category-title" onClick={() => setDetailName(row.name)} aria-label={`Ver gastos de ${row.name}`}><span aria-hidden="true">{row.emoji}</span><strong>{row.name}</strong></button>;
+  const title = (row: CategorySummary) => <button className="category-title" onClick={() => setDetailName(row.name)} aria-label={`Ver gastos de ${row.name}`}><CategoryIcon category={row.category} /><strong>{row.name}</strong></button>;
   return <>
     <div className="page-heading"><div><h1>Categorías</h1><p>Organizá tus gastos y encontrá en qué se va tu mes.</p></div><Button onClick={() => setEditor({ category: null })}><Plus size={18} />Nueva categoría</Button></div>
     <div className="list-toolbar category-toolbar">
@@ -95,7 +99,7 @@ export function CategoriesPage() {
       <label className="search-box"><Search size={16} /><input aria-label="Buscar categorías" placeholder="Buscar categoría…" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
     </div>
     <div className="category-caption"><span>{data.categories.length} {data.categories.length === 1 ? 'categoría personal' : 'categorías personales'}</span><span>Gastos registrados · {currency} · {month.split('-').reverse().join('/')}</span></div>
-    {!rows.length ? <div className="list-surface empty-state"><span className="empty-icon" aria-hidden="true"><Tags size={30} /></span><h3>{search ? 'No encontramos esa categoría' : 'Dale un lugar a cada gasto'}</h3><p>{search ? 'Probá con otro nombre.' : 'Creá tu primera categoría con el nombre y emoji que prefieras.'}</p>{!search && <Button variant="outline" onClick={() => setEditor({ category: null })}><Plus size={16} />Crear categoría</Button>}</div> : view === 'gallery' ?
+    {!rows.length ? <div className="list-surface empty-state"><span className="empty-icon" aria-hidden="true"><Tags size={30} /></span><h3>{search ? 'No encontramos esa categoría' : 'Dale un lugar a cada gasto'}</h3><p>{search ? 'Probá con otro nombre.' : 'Creá tu primera categoría con el nombre e ícono que prefieras.'}</p>{!search && <Button variant="outline" onClick={() => setEditor({ category: null })}><Plus size={16} />Crear categoría</Button>}</div> : view === 'gallery' ?
       <div className="category-grid">{rows.map((row) => <article className="category-card" key={row.name}>
         <div className="category-card-heading">{title(row)}{actions(row)}</div>
         <dl className="category-metrics">
@@ -109,6 +113,6 @@ export function CategoriesPage() {
     <p className="muted small category-footnote">Los importes siguen el mes y la moneda seleccionados. Las cuotas y recurrentes cuentan cuando registrás el cargo o pago.</p>
     {editor && <CategoryEditor category={editor.category} onClose={() => setEditor(null)} />}
     {deleting && <DeleteCategory category={deleting} onClose={() => setDeleting(null)} />}
-    {detail && <Dialog title={`${detail.emoji} ${detail.name}`} description={`Gastos registrados en ${currency} · ${month.split('-').reverse().join('/')}`} onClose={() => setDetailName(null)}><div className="dialog-body"><div className="category-detail-total"><span className="muted">Mes actual</span><strong>{formatMoney(detail.current, currency)}</strong></div>{detail.movements.length ? <ul className="category-detail-list">{[...detail.movements].sort((a, b) => b.date.localeCompare(a.date)).map((m) => <li key={m.id}><div><strong className={!m.concept.trim() ? 'muted' : undefined}>{m.emoji} {movementTitle(m)}</strong><p className="muted small">{m.date.split('-').reverse().join('/')} · {data.accounts.find((a) => a.id === m.accountId)?.name}{!detail.category && ` · ${m.category}`}</p></div><strong>{formatMoney(m.expenseAmount, currency)}</strong></li>)}</ul> : <p className="muted small">Todavía no hay gastos registrados en esta categoría para este mes.</p>}</div><div className="dialog-actions"><Button variant="outline" onClick={() => setDetailName(null)}>Cerrar</Button>{detail.category && <Button onClick={() => { setDetailName(null); setEditor({ category: detail.category }); }}><Edit3 size={15} />Editar categoría</Button>}</div></Dialog>}
+    {detail && <Dialog title={detail.name} description={`Gastos registrados en ${currency} · ${month.split('-').reverse().join('/')}`} onClose={() => setDetailName(null)}><div className="dialog-body"><div className="category-detail-total"><span className="muted">Mes actual</span><strong>{formatMoney(detail.current, currency)}</strong></div>{detail.movements.length ? <ul className="category-detail-list">{[...detail.movements].sort((a, b) => b.date.localeCompare(a.date)).map((m) => <li key={m.id}><div><strong className={!m.concept.trim() ? 'muted' : undefined}><CategoryIcon category={detail.category} small /> {movementTitle(m)}</strong><p className="muted small">{m.date.split('-').reverse().join('/')} · {data.accounts.find((a) => a.id === m.accountId)?.name}{!detail.category && ` · ${m.category}`}</p></div><strong>{formatMoney(m.expenseAmount, currency)}</strong></li>)}</ul> : <p className="muted small">Todavía no hay gastos registrados en esta categoría para este mes.</p>}</div><div className="dialog-actions"><Button variant="outline" onClick={() => setDetailName(null)}>Cerrar</Button>{detail.category && <Button onClick={() => { setDetailName(null); setEditor({ category: detail.category }); }}><Edit3 size={15} />Editar categoría</Button>}</div></Dialog>}
   </>;
 }
