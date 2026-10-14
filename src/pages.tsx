@@ -127,12 +127,11 @@ export function MovementRow({
         {movement.emoji}
       </span>
       <div className='row-content'>
-        <strong className={!movement.concept.trim() ? "muted" : undefined}>
+        <strong>
           {movementTitle(movement)}
         </strong>
         <p>
           {dateLabel(movement.date)} <span>·</span>{" "}
-          {movement.kind === "expense" ? `${movement.category} · ` : ""}
           {relation}
         </p>
         {movement.notes && <p className='row-note'>{movement.notes}</p>}
