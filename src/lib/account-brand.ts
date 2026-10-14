@@ -1,6 +1,7 @@
 import type { AccountType } from '../../shared/domain';
 
 const brands: [RegExp, string][] = [
+  [/\bastro\s*pay\b/, 'astropay'], [/\barq\b|\bdolar\s*app\b/, 'arq'],
   [/\bmercado\s*pago\b/, 'mercadopago'], [/\bcuenta\s*dni\b/, 'cuenta-dni'],
   [/\bgalicia\b/, 'banco-galicia'], [/\bnaranja\s*x\b/, 'naranja-x'],
   [/\buala\b/, 'uala'], [/\bbrubank\b/, 'brubank'], [/\bsantander\b/, 'banco-santander'],

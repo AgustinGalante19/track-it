@@ -9,6 +9,8 @@ import {
 } from "react-router-dom"
 import {
   CalendarDays,
+  Wallet,
+  Clock3,
   ChevronLeft,
   ChevronRight,
   Moon,
@@ -155,6 +157,7 @@ export function Layout() {
   const actual = data.movements.filter(
     (m) => !m.voided && m.currency === currency && m.date.startsWith(month),
   )
+  const registeredCount = actual.filter((movement) => movement.expenseAmount > 0).length
   const total = actual.reduce((sum, m) => sum + m.expenseAmount, 0)
   const accountById = new Map(data.accounts.map((a) => [a.id, a]))
   const pending = [
@@ -318,16 +321,16 @@ export function Layout() {
             <>
               <section className='summary' aria-label='Resumen mensual'>
                 <div className='stat stat-accent'>
-                  <div className='stat-label'>
+                  <div className='stat-heading'><div className='stat-label'>
                     Gasto del mes <span>· {currency}</span>
-                  </div>
+                  </div><Wallet className='stat-icon' size={22} aria-hidden='true' /></div>
                   <div className='stat-value'>
                     {formatMoney(total, currency)}
                   </div>
-                  <p>Compras, cuotas y cargos registrados</p>
+                  <p>{registeredCount} {registeredCount === 1 ? "gasto registrado" : "gastos registrados"}</p>
                 </div>
-                <div className='stat'>
-                  <div className='stat-label'>Pendiente del mes</div>
+                <div className='stat stat-pending'>
+                  <div className='stat-heading'><div className='stat-label'>Pendiente del mes</div><Clock3 className='stat-icon' size={22} aria-hidden='true' /></div>
                   <div className='stat-value'>
                     {formatMoney(
                       pending.reduce((a, b) => a + b, 0),
@@ -336,7 +339,7 @@ export function Layout() {
                   </div>
                   <p>
                     {pending.length
-                      ? `${pending.length} compromiso${pending.length === 1 ? "" : "s"} por confirmar`
+                      ? `${pending.length} por confirmar`
                       : "Todo al día por acá"}
                   </p>
                 </div>

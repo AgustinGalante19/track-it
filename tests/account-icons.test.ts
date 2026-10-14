@@ -8,6 +8,7 @@ import { AccountIcon } from '../src/components/AccountIcon';
 afterEach(cleanup);
 
 it.each([
+  ['Astro Pay', 'astropay'], ['AstroPay USD', 'astropay'], ['ARQ USD', 'arq'], ['DólarApp', 'arq'], ['Parque', null],
   ['Galicia USD', 'banco-galicia'], ['Mercado Pago', 'mercadopago'], ['MercadoPago ARS', 'mercadopago'],
   ['Ualá', 'uala'], ['Naranja X', 'naranja-x'], ['Brubank', 'brubank'], ['BBVA Visa', 'banco-bbva'],
   ['Banco de la Nación Argentina', 'banco-nacion'], ['Cuenta DNI', 'cuenta-dni'],

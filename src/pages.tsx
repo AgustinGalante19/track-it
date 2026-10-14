@@ -624,7 +624,7 @@ export function RecurringPage() {
       </div>
       <section className='quick-services' aria-label='Agregar servicios rápidamente'>
         <h2>Agregar rápido</h2>
-        <div className='quick-service-list'>{quickServices.map((preset) => <button key={preset.name} disabled={!data.accounts.some((a) => !a.archived)} onClick={() => open({ type: 'recurring', preset })}><VisualIcon iconKey={preset.iconKey} small />{preset.name}<Plus size={14} aria-hidden='true' /></button>)}</div>
+        <div className='quick-service-list'>{quickServices.map((preset) => <button key={preset.name} disabled={!data.accounts.some((a) => !a.archived)} onClick={() => { setSearch(''); open({ type: 'recurring', preset }); }}><VisualIcon iconKey={preset.iconKey} small />{preset.name}<Plus size={14} aria-hidden='true' /></button>)}</div>
       </section>
       <div className='list-surface recurring-list'>
         {periods.map((period) => {

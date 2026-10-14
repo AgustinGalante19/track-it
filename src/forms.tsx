@@ -21,7 +21,7 @@ function Field({ name, label, children, hint, className = '' }: { name: keyof Va
 }
 
 export function ComposerDialog({ composer, onClose }: { composer: Composer; onClose: () => void }) {
-  const { data, currency, mutate, notify } = useFinance();
+  const { data, month, currency, setCurrency, mutate, notify } = useFinance();
   const operationId = useRef(crypto.randomUUID()); const [serverError, setServerError] = useState('');
   const account = composer.type === 'account' ? composer.account : undefined;
   const [customColor, setCustomColor] = useState<string | null>(account?.color ?? null);
@@ -44,7 +44,7 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
     accountId: movement?.accountId || rule?.accountId || chargeAccountId || (composer.type === 'income' ? composer.accountId : undefined) || firstAccount?.id || '',
     date: movement?.date || today(), category: initialCategory, emoji: movement?.emoji || rule?.emoji || account?.emoji || categoryEmoji(initialCategory),
     notes: movement?.notes || '', payment: composer.type === 'plan' ? 'installments' : 'single', count: '6', historicalCount: '0', firstDate: today(),
-    kind: rule?.kind || preset?.kind || 'subscription', dueDay: String(rule?.dueDay || Number(today().slice(8))), startDate: rule?.startDate || `${today().slice(0, 7)}-01`,
+    kind: rule?.kind || preset?.kind || 'subscription', dueDay: String(rule?.dueDay || Number(today().slice(8))), startDate: rule?.startDate || `${month}-01`,
     name: account?.name || '', type: account?.type || 'bank', currency: account?.currency || currency,
   } });
   const values = watch(); const source = accounts.find((a) => a.id === values.accountId);
@@ -78,6 +78,7 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
         const payload = expenseInputSchema.parse({ id: editingMovement?.id || id, concept: value.concept, accountId: value.accountId, amount: cents(value.amount, 'amount'), date: value.date, category: value.category, emoji: value.emoji, notes: value.notes });
         await save(editingMovement ? `/expenses/${editingMovement.id}` : '/expenses', editingMovement ? { ...payload, version: editingMovement.version } : payload, editingMovement ? 'PUT' : 'POST');
       }
+      if (composer.type === 'recurring' && amountCurrency !== currency) setCurrency(amountCurrency);
       onClose();
       notify(!reconciled ? 'Guardado. No pudimos actualizar las vistas. Volvé a actualizar.' : composer.type === 'plan' || isPlan ? 'Compra creada. Las cuotas quedan pendientes de confirmar.' : composer.type === 'recurring' ? 'Recurrente guardado.' : composer.type === 'account' ? 'Cuenta guardada.' : 'Guardado.');
       if (value.accountId) localStorage.setItem('lastAccount', value.accountId);

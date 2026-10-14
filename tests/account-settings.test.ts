@@ -10,7 +10,7 @@ import { CategoriesPage } from '../src/CategoriesPage';
 import { AccountsPage } from '../src/AccountsPage';
 import { send } from '../src/lib/api';
 import { financeStore } from '../src/lib/finance-store';
-import { today, type FinanceAccount, type Movement, type Posting, type Snapshot } from '../shared/domain';
+import { addMonth, today, type FinanceAccount, type Movement, type Posting, type Snapshot } from '../shared/domain';
 
 vi.mock('../src/components/UpdatePrompt', () => ({ UpdatePrompt: () => null }));
 vi.mock('../src/components/SessionPreferences', () => ({ SessionPreferences: () => null }));
@@ -27,8 +27,8 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); financeStore.resetSession(); vi.unstubAllGlobals(); });
 
-async function show(path = '/', accounts: FinanceAccount[] = [bank], history: { posting: Posting; movement: Movement }[] = []) {
-  let data: Snapshot = { accounts, movements: [], plans: [], installments: [], recurring: [], occurrences: [], categories: [] };
+async function show(path = '/', accounts: FinanceAccount[] = [bank], history: { posting: Posting; movement: Movement }[] = [], movements: Movement[] = []) {
+  let data: Snapshot = { accounts, movements, plans: [], installments: [], recurring: [], occurrences: [], categories: [] };
   vi.mocked(send).mockImplementation(async <T>(url: string, input: unknown) => {
     if (url === '/accounts') data = { ...data, accounts: [...data.accounts, { ...bank, ...input as typeof bank }] };
     if (url.startsWith('/accounts/')) data = { ...data, accounts: data.accounts.map((account) => url === `/accounts/${account.id}` ? { ...account, ...input as Partial<FinanceAccount> } : account) };
@@ -241,4 +241,26 @@ it('guarda un color elegido, lo recupera al editar y permite volver al automáti
   const renamed = await screen.findByRole('article', { name: 'Mercado Pago' });
   expect(renamed.style.getPropertyValue('--account-color')).toBe('#009ee3');
   expect(send).toHaveBeenLastCalledWith(expect.stringMatching(/^\/accounts\//), expect.objectContaining({ color: null }), 'PATCH');
+});
+
+
+it.each([0, 1, 2])('cuenta %i gastos registrados del mes y moneda, excluyendo ingresos y anulados', async (count) => {
+  const base: Movement = {
+    id: 'expense', userId: 'owner', kind: 'expense', concept: 'Café', date: today(),
+    amount: 10000, currency: 'ARS', accountId: bank.id, destinationId: null, receivedAmount: null,
+    destinationCurrency: null, direction: 'outgoing', classification: 'expense', counterpart: '',
+    fee: 0, expenseAmount: 10000, category: 'General', emoji: 'E', notes: '', sourceType: 'single',
+    sourceId: null, version: 1, voided: false, createdAt: new Date().toISOString(),
+  };
+  const rows: Movement[] = [
+    ...Array.from({ length: count }, (_, index) => ({ ...base, id: `expense-${index}` })),
+    { ...base, id: 'voided', voided: true },
+    { ...base, id: 'usd', currency: 'USD' },
+    { ...base, id: 'previous', date: addMonth(today(), -1) },
+    { ...base, id: 'income', kind: 'income', classification: 'income', direction: 'incoming', expenseAmount: 0 },
+  ];
+  await show('/', [bank], [], rows);
+  expect(screen.getByText(`${count} ${count === 1 ? 'gasto registrado' : 'gastos registrados'}`)).toBeTruthy();
+  expect(document.querySelector('.stat-accent .lucide-wallet')).toBeTruthy();
+  expect(document.querySelector('.stat-pending .lucide-clock-3')).toBeTruthy();
 });
