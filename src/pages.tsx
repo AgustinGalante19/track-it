@@ -1,3 +1,4 @@
+import { AccountIcon } from './components/AccountIcon'
 import { CategoryIcon, VisualIcon } from './components/VisualIcon'
 import { quickServices, recurringIcon } from '../shared/icons'
 import { useCallback, useState, useSyncExternalStore } from "react"
@@ -69,7 +70,7 @@ function Header({
   description,
   action,
 }: {
-  title: string
+  title: React.ReactNode
   description: string
   action?: React.ReactNode
 }) {
@@ -132,7 +133,7 @@ export function MovementRow({
         </strong>
         <p>
           {dateLabel(movement.date)} <span>·</span>{" "}
-          {relation}
+          {source && <AccountIcon account={source} small />}{relation}
         </p>
         {movement.notes && <p className='row-note'>{movement.notes}</p>}
         {showSource && movement.sourceType !== "single" && (
@@ -277,7 +278,7 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
             <ChevronDown size={15} className={expanded ? "rotate" : ""} />
           </strong>
           <p>
-            {plan.category} · {account.name} · {completed} de {plan.count}{" "}
+            {plan.category} · <AccountIcon account={account} small />{account.name} · {completed} de {plan.count}{" "}
             registradas
           </p>
           <div className='progress-track'>
@@ -640,7 +641,7 @@ export function RecurringPage() {
                   <p>
                     {dateLabel(period.dueDate)} ·{" "}
                     {rule.kind === "subscription" ? "Suscripción" : "Servicio"}{" "}
-                    · {account.name}
+                    · <AccountIcon account={account} small />{account.name}
                   </p>
                   {period.period < month && (
                     <span className='badge badge-warm'>
@@ -764,7 +765,7 @@ export function AccountPage() {
         Volver a Cuentas
       </Link>
       <Header
-        title={`${account.emoji} ${account.name}`}
+        title={<span className="account-name-heading"><AccountIcon account={account} />{account.name}</span>}
         description={`${account.currency} · ${account.archived ? "Cuenta archivada" : isCredit ? "Tarjeta de crédito" : account.type === "wallet" ? "Billetera virtual" : account.type === "cash" ? "Efectivo" : "Cuenta bancaria"}`}
         action={
           <Button

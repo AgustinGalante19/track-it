@@ -1,3 +1,4 @@
+import { AccountIcon } from './components/AccountIcon';
 import { CategoryIcon, IconPicker } from './components/VisualIcon';
 import { categoryIcon, recurringIconChoice, type IconKey } from '../shared/icons';
 import { createContext, useContext, useRef, useState } from 'react';
@@ -86,13 +87,13 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
       else setServerError(error instanceof Error ? error.message : 'No pudimos guardar los cambios.');
     }
   }
-  const selectAccount = <select {...register('accountId')} required>{accounts.filter((a) => composer.type !== 'income' || a.type !== 'credit').map((a) => <option key={a.id} value={a.id}>{a.emoji} {a.name} · {a.currency}{a.type === 'credit' ? ' · Tarjeta' : ''}</option>)}</select>;
+  const selectAccount = <select {...register('accountId')} required>{accounts.filter((a) => composer.type !== 'income' || a.type !== 'credit').map((a) => <option key={a.id} value={a.id}>{a.name} · {a.currency}{a.type === 'credit' ? ' · Tarjeta' : ''}</option>)}</select>;
   let estimate: number[] = []; try { const amount = parseMoney(values.amount); if (amount) estimate = splitInstallments(amount, Number(values.count)); } catch { /* Importe todavía incompleto. */ }
   const title = editingMovement ? 'Editar gasto' : movement ? 'Duplicar gasto' : rule ? 'Editar recurrente' : account && composer.type === 'account' ? 'Editar cuenta' : composer.type === 'charge' ? source?.type === 'credit' ? 'Registrar cargo' : 'Confirmar pago' : titles[composer.type];
   return <FormErrors.Provider value={errors}><Dialog title={title} description={composer.type === 'charge' ? occurrence?.name || `${plan?.name} · cuota ${installment?.number}/${plan?.count}` : undefined} onClose={() => { if (!isSubmitting) onClose(); }}><form onSubmit={handleSubmit(submit)}><div className="dialog-body form-grid">
     {composer.type === 'account' ? <>
       <Field name="name" label="Nombre de la cuenta" className="span-2"><input {...register('name', { required: 'Escribí un nombre.' })} placeholder="Ej. Galicia o Mercado Pago" maxLength={80} autoFocus /></Field>
-      <Field name="emoji" label="Emoji"><input {...register('emoji')} maxLength={16} /></Field>
+      <div className="account-preview span-2"><AccountIcon account={{ name: values.name, type: values.type, color: customColor }} /><span>Logo automático según el nombre de la entidad; si no hay coincidencia, se usa el ícono del tipo de cuenta.</span></div>
       <fieldset className="account-color-field span-2" disabled={isSubmitting}>
         <legend>Color de la cuenta</legend>
         <div className="account-color-controls">

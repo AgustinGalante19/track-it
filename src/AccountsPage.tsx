@@ -1,6 +1,7 @@
+import { AccountIcon } from './components/AccountIcon';
 import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, ArrowRight, Banknote, CreditCard, Edit3, Landmark, Plus, RotateCcw, Search, Trash2, Wallet } from 'lucide-react';
+import { Archive, ArrowRight, Edit3, Plus, RotateCcw, Search, Trash2, Wallet } from 'lucide-react';
 import { useFinance } from './context';
 import { Button } from './components/ui/button';
 
@@ -8,7 +9,6 @@ import { accountColor, accountIconColor, accountTypes } from './lib/account-appe
 import type { FinanceAccount } from '../shared/domain';
 import './accounts.css';
 
-const icons = { bank: Landmark, wallet: Wallet, cash: Banknote, credit: CreditCard };
 
 export function AccountsPage() {
   const { data, month, open, confirm, mutate } = useFinance();
@@ -43,11 +43,10 @@ export function AccountsPage() {
     </div>
     <p className="accounts-caption">Todas tus monedas · {rows.length} {rows.length === 1 ? 'cuenta' : 'cuentas'}</p>
     {rows.length ? <div className="accounts-grid">{rows.map((account) => {
-      const Icon = icons[account.type];
       const color = account.color ?? accountColor(account.name, account.type);
       return <article className="account-card" key={account.id} aria-label={account.name} style={{ '--account-color': color, '--account-ink': accountIconColor(color) } as CSSProperties}>
         <div className="account-card-body">
-          <div className="account-card-top"><span className="account-card-icon"><Icon size={25} aria-hidden="true" /></span><span className="account-currency">{account.currency}</span></div>
+          <div className="account-card-top"><AccountIcon account={account} /><span className="account-currency">{account.currency}</span></div>
           <Link className="account-card-title" to={`/cuentas/${account.id}?mes=${month}`}><h2>{account.name}</h2></Link>
           <p className="muted small">{accountTypes[account.type]}{account.archived && ' · Archivada'}</p>
         </div>

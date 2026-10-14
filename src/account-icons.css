@@ -1,0 +1,6 @@
+.account-visual{display:inline-grid;place-items:center;flex-shrink:0;vertical-align:middle;width:52px;height:52px;border-radius:15px;background:var(--account-color);color:var(--account-ink);overflow:hidden}
+.account-visual img{display:block;width:100%;height:100%;object-fit:contain;background:#fff}
+.account-visual-small{width:18px;height:18px;border-radius:5px;margin-right:5px}
+.account-name-heading{display:inline-flex;align-items:center;gap:12px;max-width:100%;overflow-wrap:anywhere}
+.account-preview{display:flex;align-items:center;gap:12px}.account-preview>span:last-child{font-size:12px;color:var(--muted)}
+.row-content p .account-visual,.row-content p .account-visual-small{padding:0}
