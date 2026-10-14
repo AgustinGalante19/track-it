@@ -28,7 +28,7 @@ flowchart LR
 
 | Owner | Exclusive implementation area |
 |---|---|
-| Stage 0 | `shared/finance-sync.ts`, additive bootstrap identity in `server/app.ts`, timing helpers, baseline browser harness, package test script, build-info/update-safety interface stubs |
+| Stage 0 | `shared/finance-sync.ts`, additive bootstrap identity in `server/app.ts`, timing helpers, baseline browser harness, package test script |
 | Stage 1 | `server/app.ts`, `server/service.ts`, `server/categories.ts`, new server delta helper, server synchronization tests |
 | Stage 2 | `src/lib/finance-store.ts`, store tests; no route or form edits yet |
 | Stage 3 | `src/lib/api.ts`, route data, Layout/context, forms and page consumers, auto-refresh/history, integration tests |

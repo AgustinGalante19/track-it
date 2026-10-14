@@ -21,7 +21,6 @@ Inspect git status and runtime versions. Use the dedicated fictional browser har
 | S0-07 | Repeat warmups and 10 samples at stated desktop/mobile sizes and network conditions | Median/p95 and counts derived from saved samples; cold/warm not mixed |
 | S0-08 | Audit all 18 delta-enabled routes and restoration exception against context matrix | Every direct and indirect change represented; hidden recurring periods and account versions covered |
 | S0-09 | Inspect published CSS and service worker, if accessible | Evidence distinguishes report, reproduction, and hypothesis; inaccessible checks labeled BLOCKED |
-| S0-10 | Import build-info and update-safety stubs; set/reset blocked state and unsubscribe | Stable Stage 3/4 interfaces exist, callbacks clean up, no financial persistence |
 
 Observe user-visible timing through commit/render evidence, not network timing alone. Mutation success can precede bootstrap completion in the baseline; document this honestly rather than failing Stage 0 for a pre-existing symptom. Confirm the harness cleans only its dedicated database/processes, preserves `.env` and unrelated `.data` contents, and does not persist financial fixtures in browser storage.
 
