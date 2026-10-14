@@ -2,16 +2,17 @@ import { createMemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api, ApiError } from '../src/lib/api';
 import { loadFinance, shouldReloadFinance } from '../src/lib/route-data';
+import { financeStore } from '../src/lib/finance-store';
 
 vi.mock('../src/lib/api', async (original) => ({ ...await original<typeof import('../src/lib/api')>(), api: vi.fn() }));
-afterEach(() => { vi.mocked(api).mockReset(); vi.unstubAllGlobals(); });
+afterEach(() => { financeStore.resetSession(); vi.mocked(api).mockReset(); vi.unstubAllGlobals(); });
 
 it('carga sesión y datos con una sola solicitud cancelable', async () => {
-  const value = { data: { accounts: [] }, user: { name: 'Persona' } };
+  const value = { data: { accounts: [], movements: [], categories: [], recurring: [], occurrences: [], plans: [], installments: [] }, user: { name: 'Persona' }, userId: 'fictional' };
   vi.mocked(api).mockResolvedValue(value);
   const request = new Request('https://track.test/?mes=2026-10');
   const result = await loadFinance({ request });
-  expect(api).toHaveBeenCalledExactlyOnceWith('/bootstrap?month=2026-10', { signal: request.signal });
+  expect(api).toHaveBeenCalledExactlyOnceWith('/bootstrap?month=2026-10', { signal: expect.any(AbortSignal), cache: 'no-store' });
   expect(result).toMatchObject(value);
   expect(result.loadedAt).toBeGreaterThan(0);
 });

@@ -1,3 +1,5 @@
+import { financeStore } from './lib/finance-client'
+import { holdUpdate } from './lib/update-safety'
 import { useEffect, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import {
@@ -25,6 +27,8 @@ export function AuthPage() {
   const [signup, setSignup] = useState(false),
     [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState<"password" | "google" | "demo" | null>(null)
+  const [dirty, setDirty] = useState(false)
+  useEffect(() => dirty || busy ? holdUpdate() : undefined, [dirty, busy])
   const [error, setError] = useState(() =>
     params.has("error") ? authErrorMessage(params.get("error") || "") : "",
   )
@@ -70,6 +74,7 @@ export function AuthPage() {
           })
         : await authClient.signIn.username(input)
       if (result.error) throw new Error(authErrorMessage(result.error.code))
+      financeStore.resetSession()
       navigate("/", { replace: true })
     } catch (error) {
       setError(
@@ -109,6 +114,7 @@ export function AuthPage() {
         password: "SoloDemo2026!",
       })
       if (result.error) throw new Error(authErrorMessage(result.error.code))
+      financeStore.resetSession()
       navigate("/", { replace: true })
     } catch (error) {
       setError(
@@ -185,7 +191,7 @@ export function AuthPage() {
             {error}
           </p>
         )}
-        <form onSubmit={submit} className='form-stack'>
+        <form onSubmit={submit} onChange={() => setDirty(true)} className='form-stack'>
           {signup && (
             <label className='field'>
               Tu nombre

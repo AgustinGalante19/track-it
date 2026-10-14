@@ -7,8 +7,7 @@ import {
   useRouteError,
   Link,
 } from "react-router-dom"
-import { api } from "./lib/api"
-import { loadFinance, shouldReloadFinance } from "./lib/route-data"
+import { loadFinance, loadAccountHistory, shouldReloadFinance } from "./lib/route-data"
 import { Layout, Loading } from "./Layout"
 import { UpdatePrompt } from "./components/UpdatePrompt"
 import "./styles.css"
@@ -91,7 +90,7 @@ const router = createBrowserRouter([
         lazy: async () => ({
           Component: (await import("./pages")).AccountPage,
         }),
-        loader: ({ params, request }) => api(`/accounts/${params.id}/history`, { signal: request.signal }),
+        loader: loadAccountHistory,
       },
       { path: "*", loader: () => redirect("/") },
     ],

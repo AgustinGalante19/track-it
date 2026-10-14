@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { randomUUID } from 'node:crypto';
+import { test, expect } from '@playwright/test';
+import { fixture } from './fixtures';
 import { writeFile } from 'node:fs/promises';
 import { today } from '../../shared/format';
 
@@ -8,33 +8,6 @@ const date = today();
 const month = date.slice(0, 7);
 const viewports = [{ width: 1440, height: 900 }, { width: 360, height: 800 }, { width: 390, height: 844 }];
 type Sample = { endToEnd: number; receiptToRender: number; response: number; writes: number; bootstraps: number; bytes: number };
-async function fixture(page: Page) {
-  await page.request.post('/api/__pcache/delay', { data: { delay: 0 } });
-  const username = `pcache${randomUUID().replaceAll('-', '').slice(0, 15)}`;
-  const signup = await page.request.post('/api/auth/sign-up/email', {
-    headers: { Origin: origin }, data: { username, email: `${username}@example.invalid`, name: 'PCACHE-Person', password: 'PCACHE-Fictional-2026!' },
-  });
-  expect(signup.ok()).toBeTruthy();
-  async function post(path: string, data: unknown) {
-    const response = await page.request.post(`/api${path}`, { headers: { Origin: origin }, data });
-    expect(response.ok(), `${path}: ${response.status()}`).toBeTruthy();
-    return response.json();
-  }
-  const bank = randomUUID(), credit = randomUUID(), usd = randomUUID();
-  for (const [id, name, type, currency] of [[bank, 'Bank', 'bank', 'ARS'], [credit, 'Credit', 'credit', 'ARS'], [usd, 'USD', 'bank', 'USD']]) {
-    await post('/accounts', { id, name: `PCACHE-${name}`, type, currency, emoji: 'B', color: null });
-  }
-  for (let index = 0; index < 30; index++) await post('/expenses', {
-    id: randomUUID(), concept: `PCACHE-Seed-${index}`, accountId: bank, amount: 1000, date, category: 'General', emoji: 'E', notes: '',
-  });
-  for (const kind of ['service', 'subscription']) await post('/recurring', {
-    id: randomUUID(), name: `PCACHE-${kind}`, kind, accountId: bank, amount: 12500, dueDay: 15,
-    startDate: `${month}-01`, category: 'General', emoji: 'R',
-  });
-  await post('/plans', { id: randomUUID(), name: 'PCACHE-Plan', accountId: credit, total: 30000, count: 3,
-    firstDate: `${month}-01`, historicalCount: 0, category: 'General', emoji: 'P' });
-  return { bank };
-}
 for (const viewport of viewports) for (const delayed of [false, true]) {
   test(`${viewport.width}x${viewport.height} ${delayed ? '400ms-4x' : 'normal'}`, async ({ page, browser }, info) => {
     await page.setViewportSize(viewport);
@@ -79,6 +52,8 @@ for (const viewport of viewports) for (const delayed of [false, true]) {
       await expect.poll(() => page.evaluate(() => (window as unknown as { pcacheMeasurements: { name: string }[] }).pcacheMeasurements.filter((entry) => entry.name === 'finance-end-to-end').length)).toBe(index + 1);
       page.off('response', listener);
       await Promise.all(bodies);
+      expect(writes).toBe(1);
+      expect(bootstraps).toBe(0);
       const measurements = await page.evaluate(() => (window as unknown as { pcacheMeasurements: { name: string; duration: number }[] }).pcacheMeasurements.slice(-3));
       samples.push({ endToEnd: measurements.find((e) => e.name === 'finance-end-to-end')!.duration,
         receiptToRender: measurements.find((e) => e.name === 'finance-receipt-to-render')!.duration,

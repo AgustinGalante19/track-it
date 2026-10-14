@@ -9,6 +9,7 @@ import { SettingsPage } from '../src/SettingsPage';
 import { CategoriesPage } from '../src/CategoriesPage';
 import { AccountsPage } from '../src/AccountsPage';
 import { send } from '../src/lib/api';
+import { financeStore } from '../src/lib/finance-store';
 import { today, type FinanceAccount, type Movement, type Posting, type Snapshot } from '../shared/domain';
 
 vi.mock('../src/components/UpdatePrompt', () => ({ UpdatePrompt: () => null }));
@@ -18,10 +19,13 @@ const month = today().slice(0, 7);
 const bank = { id: '12345678-1234-4234-8234-123456789012', userId: 'owner', name: 'Mi banco', type: 'bank' as const, currency: 'ARS' as const, emoji: '🏦', archived: false, version: 1 };
 
 beforeEach(() => {
+  financeStore.resetSession();
   vi.mocked(send).mockReset(); localStorage.clear();
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(callback, 0));
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout);
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); financeStore.resetSession(); vi.unstubAllGlobals(); });
 
 async function show(path = '/', accounts: FinanceAccount[] = [bank], history: { posting: Posting; movement: Movement }[] = []) {
   let data: Snapshot = { accounts, movements: [], plans: [], installments: [], recurring: [], occurrences: [], categories: [] };
@@ -30,15 +34,21 @@ async function show(path = '/', accounts: FinanceAccount[] = [bank], history: { 
     if (url.startsWith('/accounts/')) data = { ...data, accounts: data.accounts.map((account) => url === `/accounts/${account.id}` ? { ...account, ...input as Partial<FinanceAccount> } : account) };
     return { ok: true } as T;
   });
+  financeStore.setTransport({
+    bootstrap: async () => ({ data, userId: 'owner', user: { name: 'Persona', email: 'persona@example.invalid', username: 'persona' } }),
+    history: async () => history,
+    mutation: ({ path, body, method }) => send(path, body, method),
+  });
+  await financeStore.load({ month });
   const router = createMemoryRouter([{
     path: '/', element: createElement(Layout), HydrateFallback: () => null,
-    loader: () => ({ data, user: { name: 'Persona', username: 'persona' } }),
+    loader: () => financeStore.load({ month }),
     children: [
       { index: true, element: createElement(ExpensesPage) },
       { path: 'ajustes', element: createElement(SettingsPage) },
       { path: 'categorias', element: createElement(CategoriesPage) },
       { path: 'cuentas', element: createElement(AccountsPage) },
-      { path: 'cuentas/:id', element: createElement(AccountPage), loader: () => history },
+      { path: 'cuentas/:id', element: createElement(AccountPage), loader: ({ params }) => financeStore.loadHistory({ accountId: params.id! }) },
     ],
   }], { initialEntries: [`${path}?mes=${month}`] });
   render(createElement(RouterProvider, { router }));
@@ -219,7 +229,7 @@ it('guarda un color elegido, lo recupera al editar y permite volver al automáti
   fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar' }));
   const card = await screen.findByRole('article', { name: 'Galicia' });
   expect(card.style.getPropertyValue('--account-color')).toBe('#ffeebb');
-  expect(send).toHaveBeenCalledWith('/accounts', expect.objectContaining({ color: '#ffeebb' }));
+  expect(send).toHaveBeenCalledWith('/accounts', expect.objectContaining({ color: '#ffeebb' }), 'POST');
   fireEvent.click(screen.getByRole('button', { name: 'Editar Galicia' }));
   dialog = await screen.findByRole('dialog', { name: 'Editar cuenta' });
   expect((within(dialog).getByLabelText('Elegir color personalizado') as HTMLInputElement).value).toBe('#ffeebb');

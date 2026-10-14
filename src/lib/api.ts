@@ -14,7 +14,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       if (timing !== undefined) discardTiming(timing);
       throw error;
     }
-    return { error: 'El servidor no devolvió una respuesta válida.' };
+    if (timing !== undefined) discardTiming(timing);
+    throw new ApiError(response.ok ? 'No pudimos confirmar la operación. Revisá los datos antes de reintentar.' : 'El servidor no devolvió una respuesta válida.', response.ok ? 0 : response.status);
   });
   if (!response.ok) {
     if (timing !== undefined) discardTiming(timing);

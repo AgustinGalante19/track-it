@@ -1,8 +1,7 @@
 import { redirect, type ShouldRevalidateFunctionArgs } from 'react-router-dom';
-import type { AuthUser } from '../../shared/auth';
-import type { Snapshot } from '../../shared/domain';
 import { today } from '../../shared/format';
-import { api, ApiError } from './api';
+import { ApiError } from './api';
+import { financeStore } from './finance-client';
 
 export function selectedMonth(url: URL) {
   return url.searchParams.get('mes') || today().slice(0, 7);
@@ -10,13 +9,20 @@ export function selectedMonth(url: URL) {
 
 export async function loadFinance({ request }: { request: Request }) {
   try {
-    const result = await api<{ data: Snapshot; user: AuthUser }>(
-      `/bootstrap?month=${encodeURIComponent(selectedMonth(new URL(request.url)))}`,
-      { signal: request.signal },
-    );
-    return { ...result, loadedAt: Date.now() };
+    const result = await financeStore.load({ month: selectedMonth(new URL(request.url)), signal: request.signal });
+    return { ...result, loadedAt: result.lastFullReadAt };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) throw redirect('/acceso');
+    if (financeStore.getState().data && !request.signal.aborted) return { ...financeStore.getState(), loadedAt: financeStore.getState().lastFullReadAt };
+    throw error;
+  }
+}
+export async function loadAccountHistory({ params, request }: { params: { id?: string }; request: Request }) {
+  await loadFinance({ request });
+  try { return await financeStore.loadHistory({ accountId: params.id!, signal: request.signal }); }
+  catch (error) {
+    if (error instanceof ApiError && error.status === 401) throw redirect('/acceso');
+    if (financeStore.getState().data) return [];
     throw error;
   }
 }

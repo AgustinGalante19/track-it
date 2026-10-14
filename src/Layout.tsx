@@ -1,12 +1,10 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import {
   Link,
   Outlet,
-  useLoaderData,
   useLocation,
   useNavigate,
   useNavigation,
-  useRevalidator,
   useSearchParams,
 } from "react-router-dom"
 import {
@@ -20,14 +18,16 @@ import {
   CheckCircle2,
   WifiOff,
 } from "lucide-react"
-import { FinanceContext, type Composer, type Confirmation } from "./context"
-import type { Currency, Snapshot } from "../shared/domain"
-import type { AuthUser } from "../shared/auth"
+import { FinanceContext, type Composer, type Confirmation, type Mutate } from "./context"
+import type { Currency } from "../shared/domain"
 import { addMonth, formatMoney, today } from "../shared/format"
 import { Button } from "./components/ui/button"
 import { Dialog } from "./components/ui/dialog"
 import { useAutoRefresh } from "./lib/use-auto-refresh"
 import { observeFinanceRender } from "./lib/performance"
+import { financeStore } from "./lib/finance-client"
+import { getDialogCount, subscribeDialogs } from "./lib/interaction-state"
+import { setUpdateBlocked } from "./lib/update-safety"
 import {
   AppSidebar,
   AccountMenuTrigger,
@@ -52,8 +52,21 @@ export function Loading() {
   )
 }
 export function Layout() {
-  const { data, user, loadedAt } = useLoaderData() as { data: Snapshot; user: AuthUser; loadedAt: number }
+  const state = useSyncExternalStore(financeStore.subscribe, financeStore.getState)
+  const { data, user } = state
   useEffect(observeFinanceRender, [data])
+  const paintedVersion = useRef(0)
+  const paintWaiters = useRef<{ version: number; resolve: () => void }[]>([])
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      paintedVersion.current = state.commitVersion
+      paintWaiters.current = paintWaiters.current.filter((waiter) => {
+        if (waiter.version > state.commitVersion) return true
+        waiter.resolve(); return false
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [state.commitVersion])
   const [params, setParams] = useSearchParams()
   const month = params.get("mes") || today().slice(0, 7)
   const [currency, setCurrencyState] = useState<Currency>(() =>
@@ -71,15 +84,40 @@ export function Layout() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const navigation = useNavigation()
-  const revalidator = useRevalidator()
-  const refresh = useCallback(() => {
-    void revalidator.revalidate()
-  }, [revalidator.revalidate])
   const navigating = navigation.state !== "idle"
-  const refreshing = revalidator.state !== "idle"
+  const refreshing = state.refreshing
+  const dialogCount = useSyncExternalStore(subscribeDialogs, getDialogCount)
+  const blocked = !!composer || !!confirmation || dialogCount > 0 || busy || navigating || state.writeCount > 0
+  const latest = useRef({ blocked, month }); latest.current = { blocked, month }
+  const refreshWaiters = useRef<(() => void)[]>([])
+  const runRefresh = useCallback(async () => {
+    const waiters = refreshWaiters.current.splice(0)
+    try { await financeStore.refresh({ month: latest.current.month }) } catch { /* Keep content and expose the store's retry state. */ }
+    finally { for (const resolve of waiters) resolve() }
+  }, [])
+  const refresh = useCallback(() => new Promise<void>((resolve) => {
+    refreshWaiters.current.push(resolve)
+    if (!latest.current.blocked) void runRefresh()
+  }), [runRefresh])
+  useEffect(() => {
+    setUpdateBlocked(blocked)
+    if (!blocked && refreshWaiters.current.length) void runRefresh()
+  }, [blocked, runRefresh])
+  useEffect(() => () => {
+    setUpdateBlocked(false)
+    for (const waiter of paintWaiters.current.splice(0)) waiter.resolve()
+    for (const resolve of refreshWaiters.current.splice(0)) resolve()
+  }, [])
+  useEffect(() => { if (!state.userId) navigate('/acceso', { replace: true }) }, [state.userId, navigate])
+  const mutate = useCallback<Mutate>(async (path, body, method = 'POST', options) => {
+    const outcome = await financeStore.mutate({ path, body, method, month: latest.current.month, ...options })
+    const version = financeStore.getState().commitVersion
+    if (paintedVersion.current < version) await new Promise<void>((resolve) => paintWaiters.current.push({ version, resolve }))
+    return outcome
+  }, [])
   useAutoRefresh({
-    loadedAt,
-    blocked: !!composer || !!confirmation || busy || navigating || refreshing,
+    loadedAt: state.lastFullReadAt,
+    blocked: blocked || refreshing,
     refresh,
     setOnline,
   })
@@ -101,12 +139,14 @@ export function Layout() {
     const result = await authClient.signOut()
     if (result.error)
       throw new Error("No pudimos cerrar la sesión. Volvé a intentarlo.")
+    financeStore.resetSession()
     setComposer(null)
     navigate("/acceso", { replace: true })
   }
   function setMonth(value: string) {
     if (/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) setParams({ mes: value })
   }
+  if (!data || !user) return <Loading />
   const monthLabel = new Intl.DateTimeFormat("es-AR", {
     month: "long",
     year: "numeric",
@@ -152,6 +192,7 @@ export function Layout() {
         },
         notify: setNotice,
         refresh,
+        mutate,
         user,
         theme,
         setTheme,
@@ -239,12 +280,12 @@ export function Layout() {
                 size='icon'
                 aria-label='Actualizar datos'
                 title='Actualizar datos'
-                disabled={revalidator.state !== "idle"}
+                disabled={refreshing}
                 onClick={refresh}
               >
                 <RefreshCw
                   size={17}
-                  className={revalidator.state !== "idle" ? "spin" : ""}
+                  className={refreshing ? "spin" : ""}
                 />
               </Button>
               <Button
@@ -272,6 +313,7 @@ export function Layout() {
               Necesitás conexión para consultar y guardar movimientos.
             </div>
           )}
+          {state.error && <div className='connection-banner' role='alert'>No pudimos actualizar tus datos. Reintentá. <Button variant='ghost' onClick={() => void refresh()}>Reintentar</Button></div>}
           {isMain && (
             <>
               <section className='summary' aria-label='Resumen mensual'>
@@ -359,10 +401,9 @@ export function Layout() {
               onClick={async () => {
                 setBusy(true)
                 try {
-                  await confirmation.action()
-                  setNotice(confirmation.success)
+                  const outcome = await confirmation.action()
                   setConfirmation(null)
-                  refresh()
+                  setNotice(outcome.reconciled ? confirmation.success : 'Guardado. No pudimos actualizar las vistas. Volvé a actualizar.')
                 } catch (e) {
                   setConfirmError(
                     e instanceof Error
