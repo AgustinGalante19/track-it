@@ -58,9 +58,9 @@ Verification sessions may prepare fixtures and expected outcomes in parallel, bu
 - [x] Stage 1 verification PASS (local)
 - [x] Stage 2 implementation completed
 - [x] Stage 2 verification PASS (local)
-- [ ] Stage 3 implementation completed
-- [ ] Stage 3 verification PASS
-- [ ] Stage 4 implementation completed
+- [x] Stage 3 implementation completed
+- [x] Stage 3 verification PASS (local; see stage-3-results.md)
+- [x] Stage 4 implementation completed
 - [ ] Stage 4 local verification PASS
 - [ ] Published CSS reproduction/verification completed (may require device access)
 - [ ] Stage 5 local acceptance PASS

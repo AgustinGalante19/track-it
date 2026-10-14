@@ -1,6 +1,6 @@
 # Stage 3 — saves and views
 
-Prerequisites: server deltas `ce09104`, session store `c828bcf`, baseline `4051b5d`. Implementation lives on `codex/performance-cache-stage-3`; the final acceptance report records the integrated revision.
+Prerequisites: server deltas `ce09104`, session store `c828bcf`, baseline `4051b5d`. Implementation commit: `cbe7a2c` on `codex/performance-cache-stage-3`; the final acceptance report records the integrated revision.
 
 ## Delivered behavior
 
@@ -29,4 +29,6 @@ The fixture setup resets only the dedicated test database's rate-limit table bet
 
 ## Timing and gate
 
-Final timing samples and the gate outcome are recorded in `stage-5-results.md` and sanitized evidence. No physical-phone or external Turso latency claim follows from local Chromium measurements. The reported published CSS defect remains a separate unresolved investigation.
+Stage 3 local gate: **PASS**. All six production-preview conditions passed (two warmups plus ten saves each), with one write and zero bootstrap for every measured save. Normal receipt-to-render p95 was 57.7 ms desktop, 21.5 ms at 360 px, and 17.5 ms at 390 px, all below the 200 ms target. Throttled receipt-to-render p95 was 107.4/105.5/118.8 ms respectively. Decoded save-response bytes averaged 1,505.4 versus the baseline write-plus-bootstrap average 25,961.5.
+
+Raw samples and styled recurring screenshots are in `evidence/stage-3/`. Desktop and 360 px screenshots were visually inspected: cards, actions, payment badges and summaries are styled; no local unstyled-row defect was seen. The final integrated build's repeated measurements are recorded separately in `stage-5-results.md`. No physical-phone or external Turso latency claim follows from local Chromium measurements. The reported published CSS defect remains a separate unresolved investigation.
