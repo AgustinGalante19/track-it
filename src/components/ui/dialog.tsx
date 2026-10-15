@@ -1,7 +1,10 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { useEffect } from 'react';
+import { trackDialog } from '../../lib/interaction-state';
 import { X } from 'lucide-react';
 import { Button } from './button';
 export function Dialog({ title, description, open = true, onClose, children }: { title: string; description?: string; open?: boolean; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => open ? trackDialog() : undefined, [open]);
   return <DialogPrimitive.Root open={open} onOpenChange={(value) => { if (!value) onClose(); }}><DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="dialog-overlay" />
     <DialogPrimitive.Content className="dialog-content" aria-describedby={description ? undefined : undefined}>

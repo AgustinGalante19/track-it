@@ -13,6 +13,7 @@ function request(path: string, cookie = ownerCookie, method = 'GET', input?: unk
 async function signUp(email: string) {
   const response = await request('/auth/sign-up/email', '', 'POST', { email, username: email.split('@')[0], name: 'Persona de prueba', password: 'PruebaLocal2026!' });
   expect(response.status).toBe(200);
+  expect(response.headers.get('Cache-Control')).toBe('no-store');
   const cookies = response.headers.getSetCookie();
   expect(cookies.some((cookie) => /HttpOnly/i.test(cookie))).toBe(true);
   return cookies.map((cookie) => cookie.split(';')[0]).join('; ');
@@ -44,6 +45,13 @@ describe('API autenticada con SQLite real', () => {
       expect(result.user).toMatchObject({ name: 'Persona de prueba', username: 'uno' });
       expect(result).not.toHaveProperty('session');
       expect(result.data.accounts).toEqual([]);
+      expect(result.userId).toBeTruthy();
+      const other = await (await request('/bootstrap', otherCookie)).json();
+      expect(other.userId).toBeTruthy();
+      expect(other.userId).not.toBe(result.userId);
+      expect(other.data.accounts).toEqual([]);
+      expect(response.headers.get('Server-Timing')).toMatch(/total;dur=\d+\.\d+/);
+      expect(response.headers.get('Server-Timing')).toContain('snapshot;dur=');
       expect((await request('/bootstrap', '')).status).toBe(401);
       expect((await request('/bootstrap?month=1999-12')).status).toBe(400);
       expect((await request('/bootstrap?month=inválido')).status).toBe(400);
@@ -53,8 +61,13 @@ describe('API autenticada con SQLite real', () => {
     const input = { name: 'Vacaciones', emoji: '🏖️', budgetArs: 100000, budgetUsd: 25000 };
     const created = await request('/categories', ownerCookie, 'POST', input);
     expect(created.status).toBe(201);
+    expect(created.headers.get('Cache-Control')).toBe('no-store');
+    expect(created.headers.get('Server-Timing')).toMatch(/db;dur=\d+\.\d+/);
     const category = await created.json();
-    expect((await request('/categories', ownerCookie, 'POST', input)).status).toBe(409);
+    const conflict = await request('/categories', ownerCookie, 'POST', input);
+    expect(conflict.status).toBe(409);
+    expect(conflict.headers.get('Cache-Control')).toBe('no-store');
+    expect(conflict.headers.get('Server-Timing')).toMatch(/total;dur=\d+\.\d+/);
     expect((await request('/categories', ownerCookie, 'POST', { ...input, name: 'Inválida', budgetArs: -1 })).status).toBe(400);
     expect((await request(`/categories/${category.id}`, otherCookie, 'PATCH', { ...input, version: 1 })).status).toBe(404);
     expect((await request(`/categories/${category.id}`, otherCookie, 'DELETE', { version: 1 })).status).toBe(404);
@@ -70,6 +83,7 @@ describe('API autenticada con SQLite real', () => {
   it('exige una sesión y excluye respuestas privadas de la caché', async () => {
     const response = await request('/snapshot', '');
     expect(response.status).toBe(401); expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(response.headers.get('Server-Timing')).toMatch(/total;dur=\d+\.\d+/);
   });
   it('persiste una cuenta y un gasto; reintentar no duplica el movimiento', async () => {
     accountId = randomUUID();

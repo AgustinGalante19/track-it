@@ -2,10 +2,9 @@ import { createContext, useContext, useRef, useState } from 'react';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { z } from 'zod';
 import { LoaderCircle, Info } from 'lucide-react';
-import { useFinance, type Composer } from './context';
+import { useFinance, type Composer, type Mutate } from './context';
 import { Dialog } from './components/ui/dialog';
 import { Button } from './components/ui/button';
-import { send } from './lib/api';
 import { accountColor } from './lib/account-appearance';
 import './account-color.css';
 import { accountInputSchema, expenseInputSchema, recurringInputSchema, planInputSchema, incomeInputSchema, chargeInputSchema, formatMoney, moneyInput, parseMoney, splitInstallments, today } from '../shared/domain';
@@ -19,7 +18,7 @@ function Field({ name, label, children, hint, className = '' }: { name: keyof Va
 }
 
 export function ComposerDialog({ composer, onClose }: { composer: Composer; onClose: () => void }) {
-  const { data, currency, refresh, notify } = useFinance();
+  const { data, currency, mutate, notify } = useFinance();
   const operationId = useRef(crypto.randomUUID()); const [serverError, setServerError] = useState('');
   const account = composer.type === 'account' ? composer.account : undefined;
   const [customColor, setCustomColor] = useState<string | null>(account?.color ?? null);
@@ -53,29 +52,32 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
     return parsed;
   }
   async function submit(value: Values) {
+    let reconciled = true;
+    const save: Mutate = async (...args) => { const outcome = await mutate(...args); reconciled = outcome.reconciled; return outcome; };
     setServerError('');
     try {
       const id = operationId.current;
       if (composer.type === 'account') {
-        if (account) await send(`/accounts/${account.id}`, { name: value.name, emoji: value.emoji, color: customColor, archived: account.archived, version: account.version }, 'PATCH');
-        else await send('/accounts', accountInputSchema.parse({ id, name: value.name, type: value.type, currency: value.currency, emoji: value.emoji, color: customColor }));
+        if (account) await save(`/accounts/${account.id}`, { name: value.name, emoji: value.emoji, color: customColor, archived: account.archived, version: account.version }, 'PATCH');
+        else await save('/accounts', accountInputSchema.parse({ id, name: value.name, type: value.type, currency: value.currency, emoji: value.emoji, color: customColor }));
       } else if (composer.type === 'charge') {
         const payload = chargeInputSchema.parse({ id, date: value.date, ...(occurrence ? { amount: cents(value.amount, 'amount') } : {}) });
-        await send(occurrence ? `/occurrences/${encodeURIComponent(occurrence.id)}/charge` : `/installments/${installment!.id}/charge`, payload);
+        await save(occurrence ? `/occurrences/${encodeURIComponent(occurrence.id)}/charge` : `/installments/${installment!.id}/charge`, payload);
       } else if (composer.type === 'income') {
-        await send('/incomes', incomeInputSchema.parse({ id, concept: value.concept, accountId: value.accountId, amount: cents(value.amount, 'amount'), date: value.date, notes: value.notes }));
+        await save('/incomes', incomeInputSchema.parse({ id, concept: value.concept, accountId: value.accountId, amount: cents(value.amount, 'amount'), date: value.date, notes: value.notes }));
       } else if (composer.type === 'recurring') {
         const payload = recurringInputSchema.parse({ id: rule?.id || id, name: value.concept, kind: value.kind, accountId: value.accountId, amount: cents(value.amount, 'amount'), category: value.category, emoji: value.emoji, dueDay: Number(value.dueDay), startDate: value.startDate });
-        await send(rule ? `/recurring/${rule.id}` : '/recurring', rule ? { ...payload, active: rule.active, version: rule.version } : payload, rule ? 'PUT' : 'POST');
+        await save(rule ? `/recurring/${rule.id}` : '/recurring', rule ? { ...payload, active: rule.active, version: rule.version } : payload, rule ? 'PUT' : 'POST');
       } else if (isPlan) {
-        await send('/plans', planInputSchema.parse({ id, name: value.concept, accountId: value.accountId, total: cents(value.amount, 'amount'), category: value.category, emoji: value.emoji, count: Number(value.count), firstDate: value.firstDate, historicalCount: Number(value.historicalCount) }));
+        await save('/plans', planInputSchema.parse({ id, name: value.concept, accountId: value.accountId, total: cents(value.amount, 'amount'), category: value.category, emoji: value.emoji, count: Number(value.count), firstDate: value.firstDate, historicalCount: Number(value.historicalCount) }));
       } else {
         const payload = expenseInputSchema.parse({ id: editingMovement?.id || id, concept: value.concept, accountId: value.accountId, amount: cents(value.amount, 'amount'), date: value.date, category: value.category, emoji: value.emoji, notes: value.notes });
-        await send(editingMovement ? `/expenses/${editingMovement.id}` : '/expenses', editingMovement ? { ...payload, version: editingMovement.version } : payload, editingMovement ? 'PUT' : 'POST');
+        await save(editingMovement ? `/expenses/${editingMovement.id}` : '/expenses', editingMovement ? { ...payload, version: editingMovement.version } : payload, editingMovement ? 'PUT' : 'POST');
       }
-      notify(composer.type === 'plan' || isPlan ? 'Compra creada. Las cuotas quedan pendientes de confirmar.' : composer.type === 'recurring' ? 'Recurrente guardado.' : composer.type === 'account' ? 'Cuenta guardada.' : 'Guardado. Tus números están actualizados.');
+      onClose();
+      notify(!reconciled ? 'Guardado. No pudimos actualizar las vistas. Volvé a actualizar.' : composer.type === 'plan' || isPlan ? 'Compra creada. Las cuotas quedan pendientes de confirmar.' : composer.type === 'recurring' ? 'Recurrente guardado.' : composer.type === 'account' ? 'Cuenta guardada.' : 'Guardado.');
       if (value.accountId) localStorage.setItem('lastAccount', value.accountId);
-      refresh(); onClose();
+
     } catch (error) {
       if (error instanceof z.ZodError) { const first = error.issues[0]; const field = first.path[0] as keyof Values; if (field in values) setError(field, { message: first.message }); setServerError(first.message); }
       else setServerError(error instanceof Error ? error.message : 'No pudimos guardar los cambios.');

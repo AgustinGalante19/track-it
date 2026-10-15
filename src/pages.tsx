@@ -1,5 +1,6 @@
-import { useState } from "react"
-import { Link, useLoaderData, useParams } from "react-router-dom"
+import { useCallback, useState, useSyncExternalStore } from "react"
+import { Link, useParams } from "react-router-dom"
+import { financeStore } from './lib/finance-client'
 import {
   ArrowDownLeft,
   ArrowLeft,
@@ -21,7 +22,7 @@ import {
 import { useFinance } from "./context"
 import { Button } from "./components/ui/button"
 import { Dialog } from "./components/ui/dialog"
-import { send } from "./lib/api"
+
 import { movementTitle } from "./lib/movements"
 import type {
   Movement,
@@ -110,7 +111,7 @@ export function MovementRow({
   displayCurrency?: Currency
   showSource?: boolean
 }) {
-  const { data, open, confirm } = useFinance()
+  const { data, open, confirm, mutate } = useFinance()
   const source = data.accounts.find((a) => a.id === movement.accountId)
   const destination = data.accounts.find((a) => a.id === movement.destinationId)
   const isExpense = movement.kind === "expense"
@@ -126,12 +127,11 @@ export function MovementRow({
         {movement.emoji}
       </span>
       <div className='row-content'>
-        <strong className={!movement.concept.trim() ? "muted" : undefined}>
+        <strong>
           {movementTitle(movement)}
         </strong>
         <p>
           {dateLabel(movement.date)} <span>·</span>{" "}
-          {movement.kind === "expense" ? `${movement.category} · ` : ""}
           {relation}
         </p>
         {movement.notes && <p className='row-note'>{movement.notes}</p>}
@@ -231,7 +231,7 @@ export function MovementRow({
                     description:
                       "El movimiento deja de contar en el gasto registrado. El registro queda en el historial. Si es un cargo de cuota o servicio, vuelve a estar pendiente.",
                     action: () =>
-                      send(`/movements/${movement.id}/void`, {
+                      mutate(`/movements/${movement.id}/void`, {
                         version: movement.version,
                       }),
                     success: "Movimiento anulado.",
@@ -250,7 +250,7 @@ export function MovementRow({
   )
 }
 function PlanRow({ plan }: { plan: InstallmentPlan }) {
-  const { data, month, open, confirm } = useFinance()
+  const { data, month, open, confirm, mutate } = useFinance()
   const [expanded, setExpanded] = useState(false)
   const account = data.accounts.find((a) => a.id === plan.accountId)!
   const schedule = data.installments
@@ -366,7 +366,7 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
                   description:
                     "Las cuotas pendientes se cancelan. Los cargos ya registrados y su historial se conservan.",
                   action: () =>
-                    send(`/plans/${plan.id}/cancel`, { version: plan.version }),
+                    mutate(`/plans/${plan.id}/cancel`, { version: plan.version }),
                   success: "Cuotas futuras canceladas.",
                   destructive: true,
                 })
@@ -518,7 +518,7 @@ export function ExpensesPage() {
   )
 }
 export function RecurringPage() {
-  const { data, month, currency, open, confirm } = useFinance()
+  const { data, month, currency, open, confirm, mutate } = useFinance()
   const [search, setSearch] = useState("")
   const accounts = new Map(data.accounts.map((a) => [a.id, a]))
   const periods = data.occurrences
@@ -549,7 +549,7 @@ export function RecurringPage() {
         ? "No se generarán nuevos períodos. Los pagos anteriores y los pendientes de este mes se conservan."
         : "Se generarán períodos desde este mes. Los meses de la pausa no se cobran retroactivamente.",
       action: () =>
-        send(`/recurring/${rule.id}`, { ...rule, active: !rule.active }, "PUT"),
+        mutate(`/recurring/${rule.id}`, { ...rule, active: !rule.active }, "PUT"),
       success: rule.active ? "Recurrente pausado." : "Recurrente reanudado.",
     })
   }
@@ -559,7 +559,7 @@ export function RecurringPage() {
       description:
         "El recurrente se quitará de la lista y no generará nuevos períodos. Se descartarán todos sus períodos pendientes, incluidos los vencidos. Los pagos ya registrados se conservan en el historial de la cuenta. Esta acción no se puede deshacer.",
       action: () =>
-        send(`/recurring/${rule.id}`, { version: rule.version }, "DELETE"),
+        mutate(`/recurring/${rule.id}`, { version: rule.version }, "DELETE"),
       success: "Recurrente eliminado.",
       destructive: true,
     })
@@ -700,7 +700,7 @@ export function RecurringPage() {
                         description:
                           "Este período quedará omitido, sin generar un gasto. Los meses siguientes siguen su regla.",
                         action: () =>
-                          send(
+                          mutate(
                             `/occurrences/${encodeURIComponent(period.id)}/skip`,
                             {},
                           ),
@@ -744,8 +744,10 @@ export function RecurringPage() {
 }
 export function AccountPage() {
   const { id } = useParams()
-  const { data, open, confirm, month } = useFinance()
-  const history = useLoaderData() as { posting: Posting; movement: Movement }[]
+  const { data, open, confirm, month, mutate } = useFinance()
+  const state = useSyncExternalStore(useCallback((listener: () => void) => financeStore.subscribeHistory(id!, listener), [id]), financeStore.getState)
+  const historyState = state.histories[id!]
+  const history = historyState?.rows ?? []
   const account = data.accounts.find((a) => a.id === id)
   if (!account)
     return (
@@ -785,8 +787,12 @@ export function AccountPage() {
         )}
       </div>
       <h2 className='list-heading'>Historial de la cuenta</h2>
+      {historyState?.stale && <p role={historyState.error ? 'alert' : 'status'} className='muted small'>
+        {historyState.error ? 'No pudimos actualizar el historial.' : 'Actualizando historial…'}
+        {historyState.error && <Button variant='ghost' onClick={() => void financeStore.loadHistory({ accountId: id!, force: true }).catch(() => {})}>Reintentar</Button>}
+      </p>}
       <div className='list-surface'>
-        {history
+        {[...history]
           .sort(
             (a, b) =>
               b.movement.date.localeCompare(a.movement.date) ||
@@ -821,7 +827,7 @@ export function AccountPage() {
               ? "La cuenta volverá a estar disponible para nuevos movimientos."
               : "Se conserva el historial. Primero deben resolverse cuotas y recurrentes pendientes.",
             action: () =>
-              send(
+              mutate(
                 `/accounts/${account.id}`,
                 {
                   name: account.name,

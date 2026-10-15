@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Layout } from '../src/Layout';
 import { RecurringPage } from '../src/pages';
 import { send } from '../src/lib/api';
+import { financeStore } from '../src/lib/finance-store';
 import { addMonth, today, type Snapshot } from '../shared/domain';
 
 vi.mock('../src/components/UpdatePrompt', () => ({ UpdatePrompt: () => null }));
@@ -14,11 +15,14 @@ vi.mock('../src/lib/api', () => ({ send: vi.fn(), api: vi.fn(), authClient: {} }
 const month = today().slice(0, 7);
 const ruleId = '23456789-1234-4234-8234-123456789012';
 beforeEach(() => {
+  financeStore.resetSession();
   vi.mocked(send).mockReset();
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(callback, 0));
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout);
   localStorage.clear();
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); financeStore.resetSession(); vi.unstubAllGlobals(); });
 
 async function showRecurring(state: 'active' | 'paused' | 'future' = 'active') {
   const accountId = '12345678-1234-4234-8234-123456789012';
@@ -32,9 +36,15 @@ async function showRecurring(state: 'active' | 'paused' | 'future' = 'active') {
     data = { ...data, recurring: [], occurrences: [] };
     return { ok: true } as T;
   });
+  financeStore.setTransport({
+    bootstrap: async () => ({ data, userId: 'owner', user: { name: 'Persona', email: 'persona@cuentas.invalid', username: 'persona' } }),
+    history: async () => [],
+    mutation: ({ path, body, method }) => send(path, body, method),
+  });
+  await financeStore.load({ month });
   const router = createMemoryRouter([{
     path: '/', element: createElement(Layout), HydrateFallback: () => null,
-    loader: () => ({ data, user: { name: 'Persona', email: 'persona@cuentas.invalid', username: 'persona' } }),
+    loader: () => financeStore.load({ month }),
     children: [{ path: 'recurrentes', element: createElement(RecurringPage) }],
   }], { initialEntries: [`/recurrentes?mes=${month}`] });
   render(createElement(RouterProvider, { router }));
@@ -56,7 +66,7 @@ describe('Eliminación desde Recurrentes', () => {
     await waitFor(() => expect(screen.queryByText(/Streaming$/)).toBeNull());
     expect(screen.queryByRole('button', { name: label })).toBeNull();
     expect(send).toHaveBeenCalledWith(`/recurring/${ruleId}`, { version: 3 }, 'DELETE');
-    expect(screen.getByText('Recurrente eliminado.')).toBeTruthy();
+    expect(await screen.findByText('Recurrente eliminado.')).toBeTruthy();
     expect(screen.queryByText('Streaming')).toBeNull();
   });
   it('mantiene el recurrente ante un error y permite reintentar la confirmación', async () => {
@@ -68,8 +78,8 @@ describe('Eliminación desde Recurrentes', () => {
     expect(screen.getByText('Streaming')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
     await waitFor(() => expect(screen.queryByText('Streaming')).toBeNull());
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByText('Recurrente eliminado.')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await screen.findByText('Recurrente eliminado.')).toBeTruthy();
     expect(screen.queryByText('Streaming')).toBeNull();
   });
 });

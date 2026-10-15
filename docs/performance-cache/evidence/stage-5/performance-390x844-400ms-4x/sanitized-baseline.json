@@ -1,0 +1,117 @@
+{
+  "fixture": "PCACHE-v1",
+  "month": "2026-10",
+  "browser": "156.0.8078.4",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "mode": "preview",
+  "cache": "fresh browser context per condition; normal HTTP cache and service worker behavior; two save warmups",
+  "condition": "400ms response delay + 4x CPU",
+  "coldLoad": 1636.3355999999912,
+  "warmups": [
+    {
+      "endToEnd": 623.6000000000931,
+      "receiptToRender": 162.19999999995343,
+      "response": 461.4000000001397,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 554.5,
+      "receiptToRender": 114.10000000009313,
+      "response": 440.39999999990687,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    }
+  ],
+  "samples": [
+    {
+      "endToEnd": 609.5,
+      "receiptToRender": 148,
+      "response": 461.5,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 542.2000000001863,
+      "receiptToRender": 91,
+      "response": 451.20000000018626,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 497.89999999990687,
+      "receiptToRender": 63.799999999813735,
+      "response": 434.10000000009313,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 499.20000000018626,
+      "receiptToRender": 71.4000000001397,
+      "response": 427.80000000004657,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 568.1999999999534,
+      "receiptToRender": 107.4000000001397,
+      "response": 460.79999999981374,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 547.1000000000931,
+      "receiptToRender": 81.19999999995343,
+      "response": 465.9000000001397,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 560.1999999999534,
+      "receiptToRender": 119.4000000001397,
+      "response": 440.79999999981374,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 545.3000000000466,
+      "receiptToRender": 90.19999999995343,
+      "response": 455.10000000009313,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1505
+    },
+    {
+      "endToEnd": 563.3999999999069,
+      "receiptToRender": 130.19999999995343,
+      "response": 433.19999999995343,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1507
+    },
+    {
+      "endToEnd": 573.6000000000931,
+      "receiptToRender": 132.89999999990687,
+      "response": 440.70000000018626,
+      "writes": 1,
+      "bootstraps": 0,
+      "bytes": 1507
+    }
+  ],
+  "median": 547.1000000000931,
+  "p95": 609.5,
+  "receiptToRenderMedian": 91,
+  "receiptToRenderP95": 148
+}

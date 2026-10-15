@@ -4,14 +4,14 @@ import { categoryInputSchema, type Category } from '../shared/domain';
 import { summarizeCategories, type CategorySummary } from '../shared/categories';
 import { formatMoney, moneyInput, parseMoney } from '../shared/format';
 import { useFinance } from './context';
-import { send } from './lib/api';
+
 import { movementTitle } from './lib/movements';
 import { Button } from './components/ui/button';
 import { Dialog } from './components/ui/dialog';
 import './categories.css';
 
 function CategoryEditor({ category, onClose }: { category: Category | null; onClose: () => void }) {
-  const { refresh, notify } = useFinance();
+  const { mutate, notify } = useFinance();
   const [name, setName] = useState(category?.name || '');
   const [emoji, setEmoji] = useState(category?.emoji || '🏷️');
   const [ars, setArs] = useState(moneyInput(category?.budgetArs || 0));
@@ -26,8 +26,8 @@ function CategoryEditor({ category, onClose }: { category: Category | null; onCl
       if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
       setBusy(true);
       try {
-        await send(category ? `/categories/${category.id}` : '/categories', { ...parsed.data, ...(category ? { version: category.version } : {}) }, category ? 'PATCH' : 'POST');
-        refresh(); notify(category ? 'Categoría actualizada.' : 'Categoría creada.'); onClose();
+        const outcome = await mutate(category ? `/categories/${category.id}` : '/categories', { ...parsed.data, ...(category ? { version: category.version } : {}) }, category ? 'PATCH' : 'POST');
+        onClose(); notify(outcome.reconciled ? category ? 'Categoría actualizada.' : 'Categoría creada.' : 'Guardado. No pudimos actualizar las vistas. Volvé a actualizar.');
       } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
     }}>
       <div className="dialog-body form-stack">
@@ -49,15 +49,15 @@ function CategoryEditor({ category, onClose }: { category: Category | null; onCl
 }
 
 function DeleteCategory({ category, onClose }: { category: Category; onClose: () => void }) {
-  const { data, refresh, notify } = useFinance();
+  const { data, mutate, notify } = useFinance();
   const [replacementId, setReplacementId] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   return <Dialog title="Eliminar categoría" description={`Vas a eliminar ${category.name}. Tus gastos y su historial se conservan.`} onClose={() => { if (!busy) onClose(); }}>
     <form onSubmit={async (event) => {
       event.preventDefault(); if (busy) return; setBusy(true); setError('');
       try {
-        await send(`/categories/${category.id}`, { version: category.version, replacementId: replacementId || null }, 'DELETE');
-        refresh(); notify('Categoría eliminada.'); onClose();
+        const outcome = await mutate(`/categories/${category.id}`, { version: category.version, replacementId: replacementId || null }, 'DELETE');
+        onClose(); notify(outcome.reconciled ? 'Categoría eliminada.' : 'Guardado. No pudimos actualizar las vistas. Volvé a actualizar.');
       } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
     }}>
       <div className="dialog-body form-stack">

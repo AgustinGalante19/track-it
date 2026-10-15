@@ -3,12 +3,19 @@ import { loadEnv } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import { VitePWA } from "vite-plugin-pwa"
+import { execFileSync } from "node:child_process"
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), "BETTER_AUTH_URL")
   const baseURL = process.env.BETTER_AUTH_URL || env.BETTER_AUTH_URL
   const allowedHosts = baseURL ? [new URL(baseURL).hostname] : []
+  let revision = 'unknown'
+  if (command === 'build' && !process.env.TRACK_IT_BUILD_ID) {
+    try { revision = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() } catch { /* Source archives have no git metadata. */ }
+  }
+  const buildId = command === 'build' ? process.env.TRACK_IT_BUILD_ID || `${revision}-${new Date().toISOString().replace(/[-:.]/g, '')}` : 'development'
   return {
+    define: { __TRACK_IT_BUILD_ID__: JSON.stringify(buildId) },
     plugins: [
       react(),
       tailwindcss(),
@@ -69,14 +76,14 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 5173,
       strictPort: true,
-      proxy: { "/api": "http://127.0.0.1:3001" },
+      proxy: { "/api": process.env.TRACK_IT_TEST_API_ORIGIN || "http://127.0.0.1:3001" },
       allowedHosts,
     },
     preview: {
       host: "127.0.0.1",
       port: 5173,
       strictPort: true,
-      proxy: { "/api": "http://127.0.0.1:3001" },
+      proxy: { "/api": process.env.TRACK_IT_TEST_API_ORIGIN || "http://127.0.0.1:3001" },
       allowedHosts,
     },
     test: {

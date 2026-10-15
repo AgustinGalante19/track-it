@@ -5,13 +5,17 @@ import { GoogleIcon } from './GoogleIcon';
 import { useFinance } from '../context';
 import { api, ApiError, send } from '../lib/api';
 import { authClient } from '../lib/auth-client';
+import { holdUpdate } from '../lib/update-safety';
 import { authErrorMessage, usernameSchema, type AuthConfig } from '../../shared/auth';
 
 export function SessionPreferences() {
   const { user, theme, setTheme, signOut, notify, refresh } = useFinance();
   const [params] = useSearchParams();
   const [signingOut, setSigningOut] = useState(false), [busy, setBusy] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
+  useEffect(() => busy || signingOut || accessOpen ? holdUpdate() : undefined, [busy, signingOut, accessOpen]);
   const [access, setAccess] = useState<{ googleEnabled: boolean; googleLinked: boolean; passwordEnabled: boolean } | null>(null);
+  useEffect(() => { if (access?.passwordEnabled) setAccessOpen(false); }, [access?.passwordEnabled]);
   const [error, setError] = useState(() => params.has('error') ? authErrorMessage(params.get('error') || '', 'No pudimos conectar Google. Volvé a intentarlo.') : '');
   useEffect(() => {
     Promise.all([api<AuthConfig>('/config'), authClient.listAccounts()]).then(([config, accounts]) => {
@@ -41,7 +45,7 @@ export function SessionPreferences() {
       setAccess((previous) => previous ? { ...previous, passwordEnabled: true } : previous);
       notify('Listo. También podés ingresar con tu usuario y contraseña.');
     } catch (error) { setError(error instanceof ApiError ? authErrorMessage(error.code, 'No pudimos habilitar la contraseña. Volvé a ingresar con Google e intentá de nuevo.') : (error as Error).message); }
-    finally { refresh(); setBusy(false); }
+    finally { await refresh(); setBusy(false); }
   }
   return <section className="settings-card">
     <div><h2>{user.name}</h2><p className="muted small">{user.username ? `@${user.username} · ` : ''}Espacio personal</p></div>
@@ -53,7 +57,7 @@ export function SessionPreferences() {
     {access && <div className="access-preferences">
       <div><h3>Formas de acceso</h3><p className="muted small">{access.passwordEnabled ? 'Usuario y contraseña habilitados.' : 'Podés agregar un usuario y contraseña como alternativa.'}</p></div>
       {access.googleEnabled && (access.googleLinked ? <span className="connected-provider"><GoogleIcon />Google conectado</span> : <Button variant="outline" disabled={busy || signingOut} onClick={linkGoogle}><GoogleIcon />Conectar Google</Button>)}
-      {!access.passwordEnabled && <details className="local-access"><summary>Habilitar usuario y contraseña</summary><form className="form-stack" onSubmit={enablePassword}>
+      {!access.passwordEnabled && <details className="local-access" onToggle={(event) => setAccessOpen(event.currentTarget.open)}><summary>Habilitar usuario y contraseña</summary><form className="form-stack" onSubmit={enablePassword}>
         <label className="field">Usuario<input name="username" defaultValue={user.username || ''} readOnly={!!user.username} required autoComplete="username" autoCapitalize="none" spellCheck={false} minLength={3} maxLength={30} placeholder="tu_usuario" disabled={busy} /></label>
         <label className="field">Nueva contraseña<input name="password" type="password" required autoComplete="new-password" minLength={10} maxLength={128} placeholder="Al menos 10 caracteres" disabled={busy} /></label>
         <Button type="submit" disabled={busy || signingOut}>{busy ? 'Guardando…' : 'Habilitar acceso'}</Button>

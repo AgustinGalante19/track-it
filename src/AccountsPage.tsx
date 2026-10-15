@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Archive, ArrowRight, Banknote, CreditCard, Edit3, Landmark, Plus, RotateCcw, Search, Trash2, Wallet } from 'lucide-react';
 import { useFinance } from './context';
 import { Button } from './components/ui/button';
-import { send } from './lib/api';
+
 import { accountColor, accountIconColor, accountTypes } from './lib/account-appearance';
 import type { FinanceAccount } from '../shared/domain';
 import './accounts.css';
@@ -11,7 +11,7 @@ import './accounts.css';
 const icons = { bank: Landmark, wallet: Wallet, cash: Banknote, credit: CreditCard };
 
 export function AccountsPage() {
-  const { data, month, open, confirm } = useFinance();
+  const { data, month, open, confirm, mutate } = useFinance();
   const [search, setSearch] = useState('');
   const [archived, setArchived] = useState(false);
   const activeCount = data.accounts.filter((account) => !account.archived).length;
@@ -20,7 +20,7 @@ export function AccountsPage() {
     confirm({
       title: account.archived ? `¿Reactivar ${account.name}?` : `¿Archivar ${account.name}?`,
       description: account.archived ? 'La cuenta volverá a estar disponible para nuevos movimientos.' : 'Se conserva el historial. Primero deben resolverse las cuotas y recurrentes pendientes.',
-      action: () => send(`/accounts/${account.id}`, { name: account.name, emoji: account.emoji, archived: !account.archived, version: account.version }, 'PATCH'),
+      action: () => mutate(`/accounts/${account.id}`, { name: account.name, emoji: account.emoji, archived: !account.archived, version: account.version }, 'PATCH'),
       success: account.archived ? 'Cuenta reactivada.' : 'Cuenta archivada.',
     });
   }
@@ -28,7 +28,7 @@ export function AccountsPage() {
     confirm({
       title: `¿Eliminar ${account.name}?`,
       description: 'Se eliminará de forma permanente. Solo se pueden eliminar cuentas sin movimientos, cuotas ni recurrentes. Si tiene registros, archivala para conservar su historial.',
-      action: () => send(`/accounts/${account.id}`, { version: account.version }, 'DELETE'),
+      action: () => mutate(`/accounts/${account.id}`, { version: account.version }, 'DELETE'),
       success: 'Cuenta eliminada.', destructive: true,
     });
   }

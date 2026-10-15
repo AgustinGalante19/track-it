@@ -3,13 +3,15 @@ import { HTTPException } from "hono/http-exception"
 import { bodyLimit } from "hono/body-limit"
 import { secureHeaders } from "hono/secure-headers"
 import { z } from "zod"
+import { timed, timingHeader, withTimings } from "./timing"
 import type { AuthUser } from "../shared/auth"
 import { and, eq } from "drizzle-orm"
 import { auth, trustedOrigins, signupEnabled, googleEnabled, authOrigin } from "./auth"
 import { db } from "./db/client"
 import * as schema from "./db/schema"
-import * as service from "./service"
-import { createCategory, editCategory, deleteCategory } from "./categories"
+import * as service from "./sync-service"
+import { createCategory, editCategory, deleteCategory } from "./sync-service"
+import { withFinanceSync } from "./finance-sync"
 import { demoEnabled, prepareDemo } from "./demo"
 import { exportBackup, restoreBackup } from "./backup"
 import {
@@ -28,6 +30,13 @@ import {
 
 type Env = { Variables: { userId: string; sessionCreatedAt: number; user: AuthUser } }
 export const app = new Hono<Env>()
+app.use("/api/*", async (c, next) => withTimings(async () => {
+  c.header("Cache-Control", "no-store")
+  await timed("total", next)
+  // Auth handlers can return their own Response and replace prepared headers.
+  c.header("Cache-Control", "no-store")
+  c.header("Server-Timing", timingHeader())
+}))
 app.use("/api/*", secureHeaders())
 app.use(
   "/api/*",
@@ -58,7 +67,7 @@ app.on(["GET", "POST", "PATCH", "DELETE"], "/api/auth/*", (c) =>
   auth.handler(c.req.raw),
 )
 app.use("/api/*", async (c, next) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers })
+  const session = await timed("auth", () => auth.api.getSession({ headers: c.req.raw.headers }))
   if (!session)
     return c.json({ error: "Tu sesión venció. Volvé a ingresar." }, 401)
   c.set("userId", session.user.id)
@@ -72,6 +81,14 @@ app.use("/api/*", async (c, next) => {
       return c.json({ error: "Origen no permitido." }, 403)
   }
   await next()
+})
+// Only financial mutation routes opt into sync; legacy routes ignore sync-only metadata.
+app.use("/api/*", async (c, next) => {
+  const financial = /^(?:POST \/api\/(?:accounts|expenses|incomes|recurring|plans|categories)|(?:PATCH|DELETE) \/api\/(?:accounts|categories)\/[^/]+|PUT \/api\/(?:expenses|recurring)\/[^/]+|DELETE \/api\/recurring\/[^/]+|POST \/api\/(?:movements\/[^/]+\/void|occurrences\/[^/]+\/(?:charge|skip)|installments\/[^/]+\/charge|plans\/[^/]+\/cancel))$/
+  if (c.req.query("sync") !== "1" || !financial.test(`${c.req.method} ${c.req.path}`)) return next()
+  const month = monthSchema.parse(c.req.query("month") || today().slice(0, 7))
+  if (month < "2000-01" || month > "2100-12") throw new service.DomainError("Mes fuera de rango.")
+  return withFinanceSync(month, next)
 })
 async function body<T extends z.ZodType>(
   request: { json: () => Promise<unknown> },
@@ -102,6 +119,7 @@ app.get("/api/bootstrap", async (c) => {
   return c.json({
     data: await service.getSnapshot(db, c.get("userId"), month),
     user: c.get("user"),
+    userId: c.get("userId"),
   })
 })
 app.get("/api/snapshot", async (c) => {
