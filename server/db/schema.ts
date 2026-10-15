@@ -83,7 +83,7 @@ export const installments = sqliteTable('installment', {
   status: text('status').$type<Installment['status']>().notNull().default('pending'), movementId: text('movement_id').references(() => movements.id),
 }, (t) => [uniqueIndex('installment_plan_number_idx').on(t.planId, t.number), index('installment_user_idx').on(t.userId)]);
 export const categories = sqliteTable('category', {
-  iconKey: text('icon_key').$type<Exclude<import('../../shared/icons').IconKey, 'youtube' | 'spotify' | 'netflix' | 'category'>>(),
+  iconKey: text('icon_key').$type<typeof import('../../shared/icons').categoryIconKeys[number]>(),
   id: text('id').primaryKey(), userId: text('user_id').notNull().references(() => user.id), name: text('name').notNull(), emoji: text('emoji').notNull(),
   budgetArs: integer('budget_ars').notNull().default(0), budgetUsd: integer('budget_usd').notNull().default(0),
   version: integer('version').notNull().default(1),

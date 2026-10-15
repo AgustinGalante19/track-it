@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-export const categoryIconKeys = ['shopping', 'food', 'coffee', 'transport', 'health', 'home', 'technology', 'entertainment', 'education', 'travel', 'pets', 'general', 'wifi', 'electricity', 'water'] as const;
-export const brandIconKeys = ['youtube', 'spotify', 'netflix'] as const;
+export const categoryIconKeys = ['shopping', 'food', 'coffee', 'transport', 'health', 'home', 'technology', 'entertainment', 'gaming', 'education', 'travel', 'pets', 'general', 'wifi', 'electricity', 'water'] as const;
+export const brandIconKeys = ['youtube', 'spotify', 'netflix', 'twitch', 'discord'] as const;
 export const categoryIconSchema = z.enum(categoryIconKeys).nullable().optional();
 export const recurringIconSchema = z.enum([...categoryIconKeys, ...brandIconKeys, 'category']).nullable().optional();
 export type IconKey = NonNullable<z.infer<typeof recurringIconSchema>>;

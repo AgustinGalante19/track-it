@@ -6,20 +6,51 @@ import { CategoriesPage } from '../src/CategoriesPage';
 import { FinanceContext } from '../src/context';
 import type { Mutate } from '../src/context';
 const mutate = vi.fn<Mutate>();
-import type { Snapshot } from '../shared/domain';
+import type { Movement, Snapshot } from '../shared/domain';
 
 
 const category = { id: '12345678-1234-4234-8234-123456789012', name: 'Hogar', emoji: '🏠', budgetArs: 500000, budgetUsd: 10000, version: 3 };
 const destination = { ...category, id: '12345678-1234-4234-8234-123456789013', name: 'General' };
 const data: Snapshot = { categories: [category, destination], accounts: [], movements: [], recurring: [], occurrences: [], plans: [], installments: [] };
 const refresh = vi.fn(), notify = vi.fn();
-function show(currency: 'ARS' | 'USD' = 'ARS') {
-  const result = render(createElement(FinanceContext.Provider, { value: { data, month: '2026-01', currency, refresh, notify, mutate, setCurrency: vi.fn(), open: vi.fn(), confirm: vi.fn(), user: { name: 'Persona', email: 'persona@example.com', username: 'persona' }, theme: 'light', setTheme: vi.fn(), signOut: vi.fn() } }, createElement(CategoriesPage)));
-  fireEvent.change(screen.getByLabelText('Filtrar por moneda'), { target: { value: currency } });
+function show(currency: 'ARS' | 'USD' | 'ALL' = 'ARS', snapshot = data) {
+  const result = render(createElement(FinanceContext.Provider, { value: { data: snapshot, month: '2026-01', currency: currency === 'ALL' ? 'ARS' : currency, refresh, notify, mutate, setCurrency: vi.fn(), open: vi.fn(), confirm: vi.fn(), user: { name: 'Persona', email: 'persona@example.com', username: 'persona' }, theme: 'light', setTheme: vi.fn(), signOut: vi.fn() } }, createElement(CategoriesPage)));
+  expect((screen.getByLabelText('Filtrar por moneda') as HTMLSelectElement).value).toBe(currency === 'ALL' ? 'ARS' : currency);
+  if (currency === 'ALL') fireEvent.change(screen.getByLabelText('Filtrar por moneda'), { target: { value: currency } });
   return result;
 }
 beforeEach(() => { vi.mocked(mutate).mockReset().mockResolvedValue({ result: {}, reconciled: true }); refresh.mockClear(); notify.mockClear(); });
 afterEach(cleanup);
+
+it('unifica categorías en galería y tabla y conserva importes y gastos de ambas monedas', () => {
+  const expense = (currency: 'ARS' | 'USD', name: string): Movement => ({
+    id: `${currency}-${name}`, userId: 'owner', kind: 'expense', concept: `Compra ${currency}`,
+    date: '2026-01-10', amount: 1500, currency, accountId: 'account', destinationId: null,
+    receivedAmount: null, destinationCurrency: null, direction: 'outgoing', classification: 'expense',
+    counterpart: '', fee: 0, expenseAmount: 1500, category: name, emoji: '🏠', notes: '',
+    sourceType: 'single', sourceId: null, version: 1, voided: false, createdAt: '2026-01-10',
+  });
+  show('ALL', { ...data, movements: (['ARS', 'USD'] as const).flatMap((currency) => [expense(currency, 'Hogar'), expense(currency, 'Sin categoría')]) });
+  expect(screen.getAllByRole('button', { name: 'Ver gastos de Hogar' })).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Ver gastos de Sin categoría' })).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Editar Hogar' })).toHaveLength(1);
+  const card = screen.getByRole('button', { name: 'Ver gastos de Hogar' }).closest('article')!;
+  expect(within(card).getByText('ARS 5.000')).toBeTruthy();
+  expect(within(card).getByText('USD 100')).toBeTruthy();
+  expect(within(card).getByText('ARS 15')).toBeTruthy();
+  expect(within(card).getByText('USD 15')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Tabla' }));
+  expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(4);
+  fireEvent.click(screen.getByRole('button', { name: 'Ver gastos de Hogar' }));
+  const dialog = screen.getByRole('dialog', { name: 'Hogar' });
+  expect(within(dialog).getByText('Compra ARS')).toBeTruthy();
+  expect(within(dialog).getByText('Compra USD')).toBeTruthy();
+  fireEvent.click(within(dialog).getByText('Cerrar'));
+  fireEvent.change(screen.getByLabelText('Filtrar por moneda'), { target: { value: 'USD' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Ver gastos de Hogar' }));
+  expect(within(screen.getByRole('dialog')).queryByText('Compra ARS')).toBeNull();
+  expect(within(screen.getByRole('dialog')).getByText('Compra USD')).toBeTruthy();
+});
 
 it('cambia entre galería y tabla, filtra y muestra el detalle del mes', async () => {
   show();

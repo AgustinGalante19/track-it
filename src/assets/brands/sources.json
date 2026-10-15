@@ -1,5 +1,17 @@
 [
   {
+    "title": "Discord",
+    "hex": "5865F2",
+    "source": "https://discord.com/branding",
+    "guidelines": "https://discord.com/branding"
+  },
+  {
+    "title": "Twitch",
+    "hex": "9146FF",
+    "source": "https://brand.twitch.tv",
+    "guidelines": "https://brand.twitch.tv"
+  },
+  {
     "title": "Netflix",
     "hex": "E50914",
     "source": "https://brand.netflix.com/en/assets/logos",

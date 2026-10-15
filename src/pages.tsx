@@ -607,10 +607,40 @@ export function RecurringPage() {
         action={
           <>
             {data.accounts.some((a) => !a.archived) ? (
-              <Button onClick={() => { setListCurrency("ALL"); open({ type: "recurring" }); }}>
-                <Plus size={18} />
-                Agregar recurrente
-              </Button>
+              <div className='recurring-create-actions'>
+                <details
+                  className='quick-services'
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.currentTarget.open = false
+                      event.currentTarget.querySelector('summary')?.focus()
+                    }
+                  }}
+                >
+                  <summary className='btn btn-outline'>Agregar rápido <ChevronDown size={15} aria-hidden='true' /></summary>
+                  <div className='quick-service-list' aria-label='Agregar servicios rápidamente'>
+                    {quickServices.map((preset) => (
+                      <button key={preset.name} onClick={(event) => {
+                        event.currentTarget.closest('details')?.removeAttribute('open')
+                        setSearch('')
+                        setListCurrency('ALL')
+                        open({ type: 'recurring', preset })
+                      }}>
+                        <VisualIcon iconKey={preset.iconKey} small />
+                        {preset.name}
+                        <Plus size={14} aria-hidden='true' />
+                      </button>
+                    ))}
+                  </div>
+                </details>
+                <Button onClick={() => { setListCurrency("ALL"); open({ type: "recurring" }); }}>
+                  <Plus size={18} />
+                  Agregar recurrente
+                </Button>
+              </div>
             ) : (
               <Link className='btn btn-primary' to={`/cuentas?mes=${month}`}>
                 <Plus size={18} />
@@ -626,10 +656,6 @@ export function RecurringPage() {
         </p>
         <div className="list-search-controls"><CurrencyFilter value={currency} onChange={setListCurrency} /><SearchBox value={search} onChange={setSearch} /></div>
       </div>
-      <section className='quick-services' aria-label='Agregar servicios rápidamente'>
-        <h2>Agregar rápido</h2>
-        <div className='quick-service-list'>{quickServices.map((preset) => <button key={preset.name} disabled={!data.accounts.some((a) => !a.archived)} onClick={() => { setSearch(''); setListCurrency('ALL'); open({ type: 'recurring', preset }); }}><VisualIcon iconKey={preset.iconKey} small />{preset.name}<Plus size={14} aria-hidden='true' /></button>)}</div>
-      </section>
       <div className='list-surface recurring-list'>
         {periods.map((period) => {
           const account = accounts.get(period.accountId)!

@@ -14,6 +14,7 @@
 .category-metrics>div{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .category-metrics dt{color:var(--muted)}
 .category-metrics dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;min-width:0}
+.category-amounts{display:flex;flex-direction:column;gap:4px}
 .category-metrics>div:nth-child(2) dd{font-weight:600;font-size:15px}
 .category-budget{margin-top:19px;color:var(--muted);font-size:10px}
 .category-budget-track{height:4px;border-radius:9px;background:var(--soft);overflow:hidden;margin-bottom:7px}
