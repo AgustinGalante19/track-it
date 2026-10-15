@@ -39,6 +39,7 @@ test('category inheritance, quick service setup and responsive cards', async ({ 
   }
 
   await page.goto('/categorias');
+  await page.getByLabel('Filtrar por moneda').selectOption('ARS');
   await page.getByRole('button', { name: 'Editar General', exact: true }).click();
   const editor = page.getByRole('dialog', { name: 'Editar categoría', exact: true });
   await editor.getByLabel('Buscar íconos', { exact: true }).fill('café');
@@ -46,7 +47,7 @@ test('category inheritance, quick service setup and responsive cards', async ({ 
   await editor.getByRole('button', { name: 'Guardar categoría', exact: true }).click();
   await expect(editor).not.toBeVisible();
   await page.goto(`/?mes=${today().slice(0, 7)}`);
-  await expect(page.locator('.stat-accent p')).toHaveText('30 gastos registrados');
+  await expect(page.locator('.stat-accent .stat-count')).toHaveText('30 gastos registrados');
   await expect(page.locator('.stat-accent .lucide-wallet')).toBeVisible();
   await expect(page.locator('.stat-pending .lucide-clock-3')).toBeVisible();
   await expect(page.locator('.movement-row [data-icon=coffee]').first()).toBeVisible();

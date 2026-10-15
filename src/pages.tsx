@@ -1,3 +1,5 @@
+import { CurrencyFilter } from './components/CurrencyFilter'
+import type { CurrencyView } from './context'
 import { AccountIcon } from './components/AccountIcon'
 import { CategoryIcon, VisualIcon } from './components/VisualIcon'
 import { quickServices, recurringIcon } from '../shared/icons'
@@ -380,7 +382,8 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
   )
 }
 export function ExpensesPage() {
-  const { data, month, currency, open } = useFinance()
+  const { data, month, open } = useFinance()
+  const [currency, setListCurrency] = useState<CurrencyView>('ALL')
   const [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [accountFilter, setAccountFilter] = useState("all"),
@@ -395,7 +398,7 @@ export function ExpensesPage() {
         !m.voided &&
         m.kind === "expense" &&
         m.sourceType === "single" &&
-        m.currency === currency &&
+        (currency === 'ALL' || m.currency === currency) &&
         m.date.startsWith(month) &&
         matches(movementTitle(m), m.accountId, m.category),
     )
@@ -405,7 +408,7 @@ export function ExpensesPage() {
     )
   const plans = data.plans.filter(
     (p) =>
-      data.accounts.find((a) => a.id === p.accountId)?.currency === currency &&
+      (currency === 'ALL' || data.accounts.find((a) => a.id === p.accountId)?.currency === currency) &&
       matches(p.name, p.accountId, p.category) &&
       data.installments.some(
         (i) =>
@@ -426,7 +429,7 @@ export function ExpensesPage() {
         action={
           <>
             {canAdd ? (
-              <Button onClick={() => open({ type: "expense" })}>
+              <Button onClick={() => { setListCurrency("ALL"); open({ type: "expense" }); }}>
                 <Plus size={18} />
                 Agregar gasto
               </Button>
@@ -455,7 +458,7 @@ export function ExpensesPage() {
             </button>
           ))}
         </div>
-        <SearchBox value={search} onChange={setSearch} />
+        <div className="list-search-controls"><CurrencyFilter value={currency} onChange={setListCurrency} /><SearchBox value={search} onChange={setSearch} /></div>
       </div>
       <div className='secondary-filters'>
         <select
@@ -465,7 +468,7 @@ export function ExpensesPage() {
         >
           <option value='all'>Todas las cuentas</option>
           {data.accounts
-            .filter((a) => a.currency === currency)
+            .filter((a) => currency === 'ALL' || a.currency === currency)
             .map((a) => (
               <option value={a.id} key={a.id}>
                 {a.name}
@@ -506,7 +509,7 @@ export function ExpensesPage() {
             description={
               search
                 ? "Probá con otro concepto o ajustá los filtros."
-                : `Tus compras en ${currency} aparecerán acá. Agregá la primera cuando quieras.`
+                : `Tus compras en ${currency === "ALL" ? "pesos y dólares" : currency} aparecerán acá. Agregá la primera cuando quieras.`
             }
           />
         )}
@@ -515,13 +518,14 @@ export function ExpensesPage() {
   )
 }
 export function RecurringPage() {
-  const { data, month, currency, open, confirm, mutate } = useFinance()
+  const { data, month, open, confirm, mutate } = useFinance()
+  const [currency, setListCurrency] = useState<CurrencyView>('ALL')
   const [search, setSearch] = useState("")
   const accounts = new Map(data.accounts.map((a) => [a.id, a]))
   const periods = data.occurrences
     .filter(
       (p) =>
-        accounts.get(p.accountId)?.currency === currency &&
+        (currency === 'ALL' || accounts.get(p.accountId)?.currency === currency) &&
         p.name
           .toLocaleLowerCase("es")
           .includes(search.toLocaleLowerCase("es")) &&
@@ -530,7 +534,7 @@ export function RecurringPage() {
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
   const rules = data.recurring.filter(
     (r) =>
-      accounts.get(r.accountId)?.currency === currency &&
+      (currency === 'ALL' || accounts.get(r.accountId)?.currency === currency) &&
       r.name.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")),
   )
   const paused = rules.filter((r) => !r.active)
@@ -603,7 +607,7 @@ export function RecurringPage() {
         action={
           <>
             {data.accounts.some((a) => !a.archived) ? (
-              <Button onClick={() => open({ type: "recurring" })}>
+              <Button onClick={() => { setListCurrency("ALL"); open({ type: "recurring" }); }}>
                 <Plus size={18} />
                 Agregar recurrente
               </Button>
@@ -620,11 +624,11 @@ export function RecurringPage() {
         <p className='muted small'>
           Importes estimados hasta que confirmás el pago.
         </p>
-        <SearchBox value={search} onChange={setSearch} />
+        <div className="list-search-controls"><CurrencyFilter value={currency} onChange={setListCurrency} /><SearchBox value={search} onChange={setSearch} /></div>
       </div>
       <section className='quick-services' aria-label='Agregar servicios rápidamente'>
         <h2>Agregar rápido</h2>
-        <div className='quick-service-list'>{quickServices.map((preset) => <button key={preset.name} disabled={!data.accounts.some((a) => !a.archived)} onClick={() => { setSearch(''); open({ type: 'recurring', preset }); }}><VisualIcon iconKey={preset.iconKey} small />{preset.name}<Plus size={14} aria-hidden='true' /></button>)}</div>
+        <div className='quick-service-list'>{quickServices.map((preset) => <button key={preset.name} disabled={!data.accounts.some((a) => !a.archived)} onClick={() => { setSearch(''); setListCurrency('ALL'); open({ type: 'recurring', preset }); }}><VisualIcon iconKey={preset.iconKey} small />{preset.name}<Plus size={14} aria-hidden='true' /></button>)}</div>
       </section>
       <div className='list-surface recurring-list'>
         {periods.map((period) => {
@@ -724,7 +728,7 @@ export function RecurringPage() {
           <Empty
             icon='📶'
             title='Tus próximos pagos, a mano'
-            description={`Agregá tus servicios y suscripciones en ${currency}. Cada pago se confirma manualmente.`}
+            description={`Agregá tus servicios y suscripciones en ${currency === "ALL" ? "pesos y dólares" : currency}. Cada pago se confirma manualmente.`}
           />
         )}
       </div>

@@ -154,3 +154,10 @@ La confirmación informa que borra movimientos, pagos, cuotas y recurrentes
 asociados; las transferencias antiguas vinculadas se retiran de ambos historiales.
 El borrado es transaccional y sincroniza los registros eliminados y los resúmenes.
 Archivar sigue disponible para conservar el historial. Las categorías se conservan.
+
+
+La moneda principal (ARS/USD) define la cifra destacada de las tarjetas del
+resumen; la otra moneda aparece debajo sin conversión. La preferencia se guarda
+localmente. Gastos, Recurrentes y Categorías tienen un filtro de moneda propio,
+con todas las monedas seleccionadas inicialmente; estos filtros no alteran el
+resumen mensual. Los formularios de gastos y recurrentes enfocan el importe.

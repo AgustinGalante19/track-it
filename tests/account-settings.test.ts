@@ -244,7 +244,8 @@ it('guarda un color elegido, lo recupera al editar y permite volver al automáti
 });
 
 
-it.each([0, 1, 2])('cuenta %i gastos registrados del mes y moneda, excluyendo ingresos y anulados', async (count) => {
+it.each([0, 1, 2])('cuenta gastos de ambas monedas en el mes, excluyendo ingresos y anulados (%i ARS)', async (count) => {
+  localStorage.setItem('primaryCurrency', 'ARS');
   const base: Movement = {
     id: 'expense', userId: 'owner', kind: 'expense', concept: 'Café', date: today(),
     amount: 10000, currency: 'ARS', accountId: bank.id, destinationId: null, receivedAmount: null,
@@ -260,7 +261,7 @@ it.each([0, 1, 2])('cuenta %i gastos registrados del mes y moneda, excluyendo in
     { ...base, id: 'income', kind: 'income', classification: 'income', direction: 'incoming', expenseAmount: 0 },
   ];
   await show('/', [bank], [], rows);
-  expect(screen.getByText(`${count} ${count === 1 ? 'gasto registrado' : 'gastos registrados'}`)).toBeTruthy();
+  expect(screen.getByText(`${count + 1} ${count === 0 ? "gasto registrado" : "gastos registrados"}`)).toBeTruthy();
   expect(document.querySelector('.stat-accent .lucide-wallet')).toBeTruthy();
   expect(document.querySelector('.stat-pending .lucide-clock-3')).toBeTruthy();
 });

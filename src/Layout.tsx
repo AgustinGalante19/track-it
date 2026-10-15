@@ -71,9 +71,10 @@ export function Layout() {
   }, [state.commitVersion])
   const [params, setParams] = useSearchParams()
   const month = params.get("mes") || today().slice(0, 7)
-  const [currency, setCurrencyState] = useState<Currency>(() =>
-    localStorage.getItem("currency") === "USD" ? "USD" : "ARS",
-  )
+  const [currency, setCurrencyState] = useState<Currency>(() => {
+    const saved = localStorage.getItem('primaryCurrency') ?? localStorage.getItem('currencyView');
+    return saved === 'USD' ? 'USD' : 'ARS';
+  })
   const [theme, setTheme] = useState(
     () => localStorage.getItem("theme") || "system",
   )
@@ -134,7 +135,7 @@ export function Layout() {
   }, [theme])
   function setCurrency(value: Currency) {
     setCurrencyState(value)
-    localStorage.setItem("currency", value)
+    localStorage.setItem("primaryCurrency", value)
   }
   async function signOut() {
     const { authClient } = await import("./lib/auth-client")
@@ -155,10 +156,11 @@ export function Layout() {
     timeZone: "UTC",
   }).format(new Date(`${month}-15T12:00:00Z`))
   const actual = data.movements.filter(
-    (m) => !m.voided && m.currency === currency && m.date.startsWith(month),
+    (m) => !m.voided && m.date.startsWith(month),
   )
   const registeredCount = actual.filter((movement) => movement.expenseAmount > 0).length
-  const total = actual.reduce((sum, m) => sum + m.expenseAmount, 0)
+  const otherCurrency: Currency = currency === 'ARS' ? 'USD' : 'ARS'
+  const totals = (unit: Currency) => actual.filter((m) => m.currency === unit).reduce((sum, m) => sum + m.expenseAmount, 0)
   const accountById = new Map(data.accounts.map((a) => [a.id, a]))
   const pending = [
     ...data.occurrences
@@ -166,19 +168,17 @@ export function Layout() {
         (p) =>
           p.status === "pending" &&
           p.period === month &&
-          accountById.get(p.accountId)?.currency === currency,
+          accountById.has(p.accountId),
       )
-      .map((p) => p.amount),
+      .map((p) => ({ amount: p.amount, currency: accountById.get(p.accountId)!.currency })),
     ...data.installments
       .filter(
         (i) =>
           i.status === "pending" &&
           i.dueDate.startsWith(month) &&
-          accountById.get(
-            data.plans.find((p) => p.id === i.planId)?.accountId || "",
-          )?.currency === currency,
+          accountById.has(data.plans.find((p) => p.id === i.planId)?.accountId || ""),
       )
-      .map((i) => i.amount),
+      .map((i) => ({ amount: i.amount, currency: accountById.get(data.plans.find((p) => p.id === i.planId)!.accountId)!.currency })),
   ]
   const isMain = ["/", "/recurrentes"].includes(pathname)
   return (
@@ -264,8 +264,9 @@ export function Layout() {
               <div
                 className='currency-control'
                 role='group'
-                aria-label='Moneda del resumen'
+                aria-label='Moneda principal'
               >
+                <span className='primary-currency-label'>Moneda principal</span>
                 {(["ARS", "USD"] as const).map((value) => (
                   <button
                     key={value}
@@ -322,21 +323,20 @@ export function Layout() {
               <section className='summary' aria-label='Resumen mensual'>
                 <div className='stat stat-accent'>
                   <div className='stat-heading'><div className='stat-label'>
-                    Gasto del mes <span>· {currency}</span>
+                    Gasto del mes
                   </div><Wallet className='stat-icon' size={22} aria-hidden='true' /></div>
                   <div className='stat-value'>
-                    {formatMoney(total, currency)}
+                    {formatMoney(totals(currency), currency)}
                   </div>
-                  <p>{registeredCount} {registeredCount === 1 ? "gasto registrado" : "gastos registrados"}</p>
+                  <p className="stat-other">Otras monedas: {formatMoney(totals(otherCurrency), otherCurrency)}</p>
+                  <p className="stat-count">{registeredCount} {registeredCount === 1 ? "gasto registrado" : "gastos registrados"}</p>
                 </div>
                 <div className='stat stat-pending'>
                   <div className='stat-heading'><div className='stat-label'>Pendiente del mes</div><Clock3 className='stat-icon' size={22} aria-hidden='true' /></div>
                   <div className='stat-value'>
-                    {formatMoney(
-                      pending.reduce((a, b) => a + b, 0),
-                      currency,
-                    )}
+                    {formatMoney(pending.filter((p) => p.currency === currency).reduce((sum, p) => sum + p.amount, 0), currency)}
                   </div>
+                  <p className="stat-other">Otras monedas: {formatMoney(pending.filter((p) => p.currency === otherCurrency).reduce((sum, p) => sum + p.amount, 0), otherCurrency)}</p>
                   <p>
                     {pending.length
                       ? `${pending.length} por confirmar`

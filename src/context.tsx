@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { MutationOptions, MutationResult } from './lib/finance-store';
+export type CurrencyView = Currency | 'ALL';
 export type Mutate = (path: string, body: unknown, method?: string, options?: Pick<MutationOptions, 'responseMode' | 'onConfirmed'>) => Promise<MutationResult>;
 import type { AuthUser } from '../shared/auth';
 import type { Snapshot, Currency, Movement, Recurring, Occurrence, Installment, FinanceAccount } from '../shared/domain';

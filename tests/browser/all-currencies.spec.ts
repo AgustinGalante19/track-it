@@ -1,0 +1,57 @@
+import { test, expect } from '@playwright/test';
+import { fixture } from './fixtures';
+import { today } from '../../shared/format';
+
+test('primary currency changes summary hierarchy while independent list filters preserve totals and amount focus', async ({ page }) => {
+  const { usd } = await fixture(page);
+  const month = today().slice(0, 7);
+  await page.goto(`/?mes=${month}`);
+  await expect(page.getByRole('button', { name: 'ARS', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Agregar gasto', exact: true }).click();
+  const expense = page.getByRole('dialog', { name: 'Agregar gasto', exact: true });
+  await expect(expense.getByLabel('Importe en ARS', { exact: true })).toBeFocused();
+  await expense.getByRole('combobox', { name: 'Cuenta o tarjeta', exact: true }).selectOption(usd);
+  await expense.getByLabel('Importe en USD', { exact: true }).fill('2,49');
+  await expense.getByLabel('Concepto', { exact: true }).fill('Mixed USD expense');
+  await expense.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect(expense).not.toBeVisible();
+  await expect(page.locator('.movement-row').filter({ hasText: 'Mixed USD expense' })).toContainText('USD 2,49');
+  await expect(page.locator('.movement-row').filter({ hasText: 'PCACHE-Seed-0' })).toBeVisible();
+  await expect(page.locator('.stat-accent .stat-value')).toHaveText('ARS 300');
+  await expect(page.locator('.stat-accent .stat-other')).toHaveText('Otras monedas: USD 2,49');
+  await page.getByRole('button', { name: 'USD', exact: true }).click();
+  await expect(page.locator('.stat-accent .stat-value')).toHaveText('USD 2,49');
+  await expect(page.locator('.movement-row').filter({ hasText: 'PCACHE-Seed-0' })).toBeVisible();
+  await page.getByRole('button', { name: 'ARS', exact: true }).click();
+  await page.getByLabel('Filtrar por moneda').selectOption('ARS');
+  await expect(page.locator('.movement-row').filter({ hasText: 'Mixed USD expense' })).toHaveCount(0);
+  await expect(page.locator('.stat-accent .stat-other')).toContainText('USD 2,49');
+  await page.getByLabel('Filtrar por moneda').selectOption('ALL');
+  await page.getByRole('link', { name: 'Recurrentes', exact: true }).first().click();
+  await page.getByRole('button', { name: 'YouTube Premium', exact: true }).click();
+  const recurring = page.getByRole('dialog', { name: 'Agregar recurrente', exact: true });
+  await expect(recurring.getByLabel('Importe estimado en ARS', { exact: true })).toBeFocused();
+  await recurring.getByRole('combobox', { name: 'Cuenta o tarjeta', exact: true }).selectOption(usd);
+  await recurring.getByLabel('Importe estimado en USD', { exact: true }).fill('2,49');
+  await recurring.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect(recurring).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'ARS', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.recurring-item').filter({ hasText: 'YouTube Premium' })).toContainText('USD 2,49');
+  await expect(page.locator('.recurring-item').filter({ hasText: 'PCACHE-service' })).toBeVisible();
+  await page.getByLabel('Filtrar por moneda').selectOption('USD');
+  await expect(page.locator('.recurring-item').filter({ hasText: 'PCACHE-service' })).toHaveCount(0);
+  await expect(page.locator('.stat-pending .stat-value')).toContainText('ARS');
+  await page.getByLabel('Filtrar por moneda').selectOption('ALL');
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'ARS', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  for (const width of [360, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/all-currencies-${width}.png`, fullPage: true });
+  }
+  await page.goto('/categorias');
+  await expect(page.getByRole('button', { name: 'Ver gastos de General en ARS', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ver gastos de General en USD', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Ver gastos de General en USD', exact: true }).click();
+  await expect(page.getByRole('dialog').locator('.category-detail-total')).toContainText('USD 2,49');
+});

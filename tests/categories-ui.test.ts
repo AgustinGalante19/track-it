@@ -14,7 +14,9 @@ const destination = { ...category, id: '12345678-1234-4234-8234-123456789013', n
 const data: Snapshot = { categories: [category, destination], accounts: [], movements: [], recurring: [], occurrences: [], plans: [], installments: [] };
 const refresh = vi.fn(), notify = vi.fn();
 function show(currency: 'ARS' | 'USD' = 'ARS') {
-  return render(createElement(FinanceContext.Provider, { value: { data, month: '2026-01', currency, refresh, notify, mutate, setCurrency: vi.fn(), open: vi.fn(), confirm: vi.fn(), user: { name: 'Persona', email: 'persona@example.com', username: 'persona' }, theme: 'light', setTheme: vi.fn(), signOut: vi.fn() } }, createElement(CategoriesPage)));
+  const result = render(createElement(FinanceContext.Provider, { value: { data, month: '2026-01', currency, refresh, notify, mutate, setCurrency: vi.fn(), open: vi.fn(), confirm: vi.fn(), user: { name: 'Persona', email: 'persona@example.com', username: 'persona' }, theme: 'light', setTheme: vi.fn(), signOut: vi.fn() } }, createElement(CategoriesPage)));
+  fireEvent.change(screen.getByLabelText('Filtrar por moneda'), { target: { value: currency } });
+  return result;
 }
 beforeEach(() => { vi.mocked(mutate).mockReset().mockResolvedValue({ result: {}, reconciled: true }); refresh.mockClear(); notify.mockClear(); });
 afterEach(cleanup);

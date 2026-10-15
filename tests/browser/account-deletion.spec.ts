@@ -22,7 +22,7 @@ test('permanent account deletion can be cancelled and removes all dependent reco
   await expect(page.getByRole('article', { name: 'PCACHE-Bank', exact: true })).toHaveCount(0);
   await expect(page.getByRole('article', { name: 'PCACHE-Credit', exact: true })).toBeVisible();
   await page.goto(`/?mes=${today().slice(0, 7)}`);
-  await expect(page.locator('.stat-accent p')).toHaveText('0 gastos registrados');
+  await expect(page.locator('.stat-accent .stat-count')).toHaveText('0 gastos registrados');
   await page.reload();
   const data = (await (await page.request.get(`/api/bootstrap?month=${today().slice(0, 7)}`)).json()).data;
   expect(data.accounts.some((a: { id: string }) => a.id === bank)).toBe(false);

@@ -22,17 +22,18 @@ test('quick services are saved and immediately visible in the selected month', a
   }
 });
 
-test('YouTube with a USD account and decimal comma stays visible after saving from ARS', async ({ page }) => {
+test('YouTube in USD stays visible without changing the primary ARS currency', async ({ page }) => {
   const { usd } = await fixture(page);
   const month = today().slice(0, 7);
   await page.goto(`/recurrentes?mes=${month}`);
+  await page.getByRole('button', { name: 'ARS', exact: true }).click();
   await page.getByRole('button', { name: 'YouTube Premium', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Agregar recurrente', exact: true });
   await dialog.getByRole('combobox', { name: 'Cuenta o tarjeta', exact: true }).selectOption(usd);
   await dialog.getByLabel('Importe estimado en USD', { exact: true }).fill('2,49');
   await dialog.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByRole('button', { name: 'USD', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'ARS', exact: true })).toHaveAttribute('aria-pressed', 'true');
   const card = page.locator('.recurring-item').filter({ hasText: 'YouTube Premium' });
   await expect(card).toBeVisible();
   await expect(card).toContainText('USD 2,49');
