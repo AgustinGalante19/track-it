@@ -1,0 +1,69 @@
+services:
+  track-it-db:
+    image: ghcr.io/tursodatabase/libsql-server@sha256:6dd3eb276d9d3604e4a48ac4a999a2e267814732d57d7e94c04ba71482333a67
+    environment:
+      SQLD_NODE: standalone
+      SQLD_DB_PATH: /var/lib/sqld/data.sqld
+      SQLD_AUTH_JWT_KEY: "${TRACK_IT_LIBSQL_PUBLIC_KEY:?Set TRACK_IT_LIBSQL_PUBLIC_KEY}"
+    volumes:
+      - libsql_data:/var/lib/sqld
+    networks:
+      - application
+      - backups
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -ec
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/8080
+          printf 'GET /health HTTP/1.0\r\n\r\n' >&3
+          read -r _ status _ <&3
+          test "$$status" = 200
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+
+  backup:
+    image: "${TRACK_IT_BACKUP_IMAGE:?Set TRACK_IT_BACKUP_IMAGE to a Node 24 image}"
+    user: "1000:1000"
+    init: true
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "libsql://track-it-db:8080?tls=0"
+      DATABASE_AUTH_TOKEN: "${TRACK_IT_LIBSQL_BACKUP_TOKEN:?Set TRACK_IT_LIBSQL_BACKUP_TOKEN}"
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          target="/backup/track-it-$$(date -u +%F).db"
+          if [ -f "$$target" ] || node /scripts/db-snapshot.mjs "$$target"; then
+            find /backup -maxdepth 1 -type f -name 'track-it-????-??-??.db' -mtime +13 -delete
+            sleep 3600
+          else
+            sleep 900
+          fi
+        done
+    depends_on:
+      track-it-db:
+        condition: service_healthy
+    volumes:
+      - ./scripts/db-snapshot.mjs:/scripts/db-snapshot.mjs:ro
+      - "${TRACK_IT_BACKUP_DIR:?Set TRACK_IT_BACKUP_DIR}:/backup"
+    networks:
+      - backups
+
+networks:
+  application:
+    external: true
+    name: "${TRACK_IT_APP_NETWORK:-track-it_default}"
+  backups:
+    internal: true
+
+volumes:
+  libsql_data:
+    external: true
+    name: "${TRACK_IT_LIBSQL_VOLUME:-track-it-libsql-data}"
