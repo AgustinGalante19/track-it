@@ -1,3 +1,8 @@
+import { CurrencyFilter } from './components/CurrencyFilter'
+import type { CurrencyView } from './context'
+import { AccountIcon } from './components/AccountIcon'
+import { CategoryIcon, VisualIcon } from './components/VisualIcon'
+import { quickServices, recurringIcon } from '../shared/icons'
 import { useCallback, useState, useSyncExternalStore } from "react"
 import { Link, useParams } from "react-router-dom"
 import { financeStore } from './lib/finance-client'
@@ -67,7 +72,7 @@ function Header({
   description,
   action,
 }: {
-  title: string
+  title: React.ReactNode
   description: string
   action?: React.ReactNode
 }) {
@@ -123,16 +128,14 @@ export function MovementRow({
   const [actionsOpen, setActionsOpen] = useState(false)
   return (
     <div className={`movement-row ${movement.voided ? "row-voided" : ""}`}>
-      <span className='row-emoji' aria-hidden='true'>
-        {movement.emoji}
-      </span>
+      <CategoryIcon category={data.categories.find((c) => c.name === movement.category)} />
       <div className='row-content'>
         <strong>
           {movementTitle(movement)}
         </strong>
         <p>
           {dateLabel(movement.date)} <span>·</span>{" "}
-          {relation}
+          {source && <AccountIcon account={source} small />}{relation}
         </p>
         {movement.notes && <p className='row-note'>{movement.notes}</p>}
         {showSource && movement.sourceType !== "single" && (
@@ -266,9 +269,7 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
   return (
     <div className='plan-item'>
       <div className='movement-row'>
-        <span className='row-emoji' aria-hidden='true'>
-          {plan.emoji}
-        </span>
+        <CategoryIcon category={data.categories.find((c) => c.name === plan.category)} />
         <button
           className='row-content plan-trigger'
           onClick={() => setExpanded(!expanded)}
@@ -279,7 +280,7 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
             <ChevronDown size={15} className={expanded ? "rotate" : ""} />
           </strong>
           <p>
-            {plan.category} · {account.name} · {completed} de {plan.count}{" "}
+            {plan.category} · <AccountIcon account={account} small />{account.name} · {completed} de {plan.count}{" "}
             registradas
           </p>
           <div className='progress-track'>
@@ -381,7 +382,8 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
   )
 }
 export function ExpensesPage() {
-  const { data, month, currency, open } = useFinance()
+  const { data, month, open } = useFinance()
+  const [currency, setListCurrency] = useState<CurrencyView>('ALL')
   const [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [accountFilter, setAccountFilter] = useState("all"),
@@ -396,7 +398,7 @@ export function ExpensesPage() {
         !m.voided &&
         m.kind === "expense" &&
         m.sourceType === "single" &&
-        m.currency === currency &&
+        (currency === 'ALL' || m.currency === currency) &&
         m.date.startsWith(month) &&
         matches(movementTitle(m), m.accountId, m.category),
     )
@@ -406,7 +408,7 @@ export function ExpensesPage() {
     )
   const plans = data.plans.filter(
     (p) =>
-      data.accounts.find((a) => a.id === p.accountId)?.currency === currency &&
+      (currency === 'ALL' || data.accounts.find((a) => a.id === p.accountId)?.currency === currency) &&
       matches(p.name, p.accountId, p.category) &&
       data.installments.some(
         (i) =>
@@ -427,7 +429,7 @@ export function ExpensesPage() {
         action={
           <>
             {canAdd ? (
-              <Button onClick={() => open({ type: "expense" })}>
+              <Button onClick={() => { setListCurrency("ALL"); open({ type: "expense" }); }}>
                 <Plus size={18} />
                 Agregar gasto
               </Button>
@@ -456,7 +458,7 @@ export function ExpensesPage() {
             </button>
           ))}
         </div>
-        <SearchBox value={search} onChange={setSearch} />
+        <div className="list-search-controls"><CurrencyFilter value={currency} onChange={setListCurrency} /><SearchBox value={search} onChange={setSearch} /></div>
       </div>
       <div className='secondary-filters'>
         <select
@@ -466,10 +468,10 @@ export function ExpensesPage() {
         >
           <option value='all'>Todas las cuentas</option>
           {data.accounts
-            .filter((a) => a.currency === currency)
+            .filter((a) => currency === 'ALL' || a.currency === currency)
             .map((a) => (
               <option value={a.id} key={a.id}>
-                {a.emoji} {a.name}
+                {a.name}
               </option>
             ))}
         </select>
@@ -486,8 +488,6 @@ export function ExpensesPage() {
             ]),
           ].map((name) => (
             <option key={name} value={name}>
-              {data.categories.find((category) => category.name === name)
-                ?.emoji || "🏷️"}{" "}
               {name}
             </option>
           ))}
@@ -509,7 +509,7 @@ export function ExpensesPage() {
             description={
               search
                 ? "Probá con otro concepto o ajustá los filtros."
-                : `Tus compras en ${currency} aparecerán acá. Agregá la primera cuando quieras.`
+                : `Tus compras en ${currency === "ALL" ? "pesos y dólares" : currency} aparecerán acá. Agregá la primera cuando quieras.`
             }
           />
         )}
@@ -518,13 +518,14 @@ export function ExpensesPage() {
   )
 }
 export function RecurringPage() {
-  const { data, month, currency, open, confirm, mutate } = useFinance()
+  const { data, month, open, confirm, mutate } = useFinance()
+  const [currency, setListCurrency] = useState<CurrencyView>('ALL')
   const [search, setSearch] = useState("")
   const accounts = new Map(data.accounts.map((a) => [a.id, a]))
   const periods = data.occurrences
     .filter(
       (p) =>
-        accounts.get(p.accountId)?.currency === currency &&
+        (currency === 'ALL' || accounts.get(p.accountId)?.currency === currency) &&
         p.name
           .toLocaleLowerCase("es")
           .includes(search.toLocaleLowerCase("es")) &&
@@ -533,7 +534,7 @@ export function RecurringPage() {
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
   const rules = data.recurring.filter(
     (r) =>
-      accounts.get(r.accountId)?.currency === currency &&
+      (currency === 'ALL' || accounts.get(r.accountId)?.currency === currency) &&
       r.name.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")),
   )
   const paused = rules.filter((r) => !r.active)
@@ -568,7 +569,7 @@ export function RecurringPage() {
     return (
       <div className='paused-row' key={rule.id}>
         <span>
-          {rule.emoji} {rule.name}
+          <VisualIcon iconKey={recurringIcon(rule, data.categories.find((c) => c.name === rule.category))} small /> {rule.name}
         </span>
         <div className='inline-actions'>
           {rule.active && (
@@ -606,10 +607,40 @@ export function RecurringPage() {
         action={
           <>
             {data.accounts.some((a) => !a.archived) ? (
-              <Button onClick={() => open({ type: "recurring" })}>
-                <Plus size={18} />
-                Agregar recurrente
-              </Button>
+              <div className='recurring-create-actions'>
+                <details
+                  className='quick-services'
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.currentTarget.open = false
+                      event.currentTarget.querySelector('summary')?.focus()
+                    }
+                  }}
+                >
+                  <summary className='btn btn-outline'>Agregar rápido <ChevronDown size={15} aria-hidden='true' /></summary>
+                  <div className='quick-service-list' aria-label='Agregar servicios rápidamente'>
+                    {quickServices.map((preset) => (
+                      <button key={preset.name} onClick={(event) => {
+                        event.currentTarget.closest('details')?.removeAttribute('open')
+                        setSearch('')
+                        setListCurrency('ALL')
+                        open({ type: 'recurring', preset })
+                      }}>
+                        <VisualIcon iconKey={preset.iconKey} small />
+                        {preset.name}
+                        <Plus size={14} aria-hidden='true' />
+                      </button>
+                    ))}
+                  </div>
+                </details>
+                <Button onClick={() => { setListCurrency("ALL"); open({ type: "recurring" }); }}>
+                  <Plus size={18} />
+                  Agregar recurrente
+                </Button>
+              </div>
             ) : (
               <Link className='btn btn-primary' to={`/cuentas?mes=${month}`}>
                 <Plus size={18} />
@@ -623,9 +654,9 @@ export function RecurringPage() {
         <p className='muted small'>
           Importes estimados hasta que confirmás el pago.
         </p>
-        <SearchBox value={search} onChange={setSearch} />
+        <div className="list-search-controls"><CurrencyFilter value={currency} onChange={setListCurrency} /><SearchBox value={search} onChange={setSearch} /></div>
       </div>
-      <div className='list-surface'>
+      <div className='list-surface recurring-list'>
         {periods.map((period) => {
           const account = accounts.get(period.accountId)!
           const rule = data.recurring.find((r) => r.id === period.ruleId)!
@@ -634,15 +665,13 @@ export function RecurringPage() {
           return (
             <div className='recurring-item' key={period.id}>
               <div className='movement-row'>
-                <span className='row-emoji' aria-hidden='true'>
-                  {period.emoji}
-                </span>
+                <VisualIcon iconKey={recurringIcon(rule, data.categories.find((c) => c.name === rule.category))} />
                 <div className='row-content'>
                   <strong>{period.name}</strong>
                   <p>
                     {dateLabel(period.dueDate)} ·{" "}
                     {rule.kind === "subscription" ? "Suscripción" : "Servicio"}{" "}
-                    · {account.name}
+                    · <AccountIcon account={account} small />{account.name}
                   </p>
                   {period.period < month && (
                     <span className='badge badge-warm'>
@@ -692,6 +721,7 @@ export function RecurringPage() {
                   {rule.active ? <Pause size={13} /> : <Play size={13} />}
                   {rule.active ? "Pausar" : "Reanudar"}
                 </button>
+                <details className='recurring-overflow'><summary aria-label={`Más acciones de ${period.name}`}><MoreHorizontal size={20} /></summary><div className='row-menu-content'>
                 {period.status === "pending" && (
                   <button
                     onClick={() =>
@@ -715,6 +745,7 @@ export function RecurringPage() {
                   <Trash2 size={13} />
                   Eliminar recurrente
                 </button>
+                </div></details>
               </div>
             </div>
           )
@@ -723,7 +754,7 @@ export function RecurringPage() {
           <Empty
             icon='📶'
             title='Tus próximos pagos, a mano'
-            description={`Agregá tus servicios y suscripciones en ${currency}. Cada pago se confirma manualmente.`}
+            description={`Agregá tus servicios y suscripciones en ${currency === "ALL" ? "pesos y dólares" : currency}. Cada pago se confirma manualmente.`}
           />
         )}
       </div>
@@ -764,7 +795,7 @@ export function AccountPage() {
         Volver a Cuentas
       </Link>
       <Header
-        title={`${account.emoji} ${account.name}`}
+        title={<span className="account-name-heading"><AccountIcon account={account} />{account.name}</span>}
         description={`${account.currency} · ${account.archived ? "Cuenta archivada" : isCredit ? "Tarjeta de crédito" : account.type === "wallet" ? "Billetera virtual" : account.type === "cash" ? "Efectivo" : "Cuenta bancaria"}`}
         action={
           <Button

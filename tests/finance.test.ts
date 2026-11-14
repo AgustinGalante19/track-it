@@ -26,6 +26,63 @@ const transfer = (accountId: string, destinationId: string | null, amount = 2000
 const snapshot = () => service.getSnapshot(db, owner, month);
 const recurring = (accountId: string) => ({ id: randomUUID(), name: 'Suscripción', kind: 'subscription' as const, accountId, amount: 20000, dueDay: 1, startDate: `${month}-01`, emoji: '📺', category: 'Servicios' });
 
+it('borra pagos, períodos y cuotas de una cuenta y conserva registros ajenos y respaldos válidos', async () => {
+  const bank = await account(), keep = await account('wallet');
+  await service.createExpense(db, owner, expense(bank.id));
+  const keptExpense = await service.createExpense(db, owner, expense(keep.id));
+  const rule = await service.createRecurring(db, owner, recurring(bank.id));
+  const period = (await snapshot()).occurrences.find((row) => row.ruleId === rule.id)!;
+  await service.chargeOccurrence(db, owner, period.id, { id: randomUUID(), date, amount: 10000 });
+  const plan = await service.createPlan(db, owner, { id: randomUUID(), name: 'Compra', emoji: 'P', category: 'General', accountId: bank.id, total: 10000, count: 2, firstDate: date, historicalCount: 0 });
+  const installment = (await snapshot()).installments.find((row) => row.planId === plan.id)!;
+  await service.chargeInstallment(db, owner, installment.id, { id: randomUUID(), date });
+  const foreign = await service.createAccount(db, other, { id: randomUUID(), name: 'Ajena', type: 'bank', currency: 'ARS', emoji: 'B' });
+  const current = (await snapshot()).accounts.find((row) => row.id === bank.id)!;
+  await expect(service.deleteAccount(db, other, bank.id, current.version)).rejects.toMatchObject({ status: 404 });
+  const beforeDeletion = await snapshot();
+  const { synchronize } = await import('../server/finance-sync');
+  const response = await synchronize(db, owner, 'deleteAccount', [bank.id, current.version], month,
+    (tx) => service.deleteAccountInTransaction(tx, owner, bank.id, current.version));
+  const after = await snapshot();
+  for (const key of Object.keys(beforeDeletion) as (keyof typeof beforeDeletion)[]) {
+    const merged = new Map<string, unknown>(beforeDeletion[key].map((row) => [row.id, row]));
+    for (const removed of response.changes.collections[key]?.removes ?? []) merged.delete(removed);
+    for (const row of response.changes.collections[key]?.upserts ?? []) merged.set(row.id, row);
+    expect(Object.fromEntries(merged)).toEqual(Object.fromEntries(after[key].map((row) => [row.id, row])));
+  }
+  expect(after.accounts.map((row) => row.id)).toEqual([keep.id]);
+  expect(after.movements.map((row) => row.id)).toEqual([keptExpense.id]);
+  for (const key of ['recurring', 'occurrences', 'plans', 'installments'] as const) expect(after[key]).toEqual([]);
+  expect((await service.getSnapshot(db, other, month)).accounts[0].id).toBe(foreign.id);
+  const backup = await exportBackup(db, owner);
+  expect(backup.postings).toHaveLength(1);
+  await expect(restoreBackup(db, owner, backup)).resolves.toEqual({ ok: true });
+  expect(await client.execute('PRAGMA foreign_key_check')).toMatchObject({ rows: [] });
+});
+
+it('elimina transferencias antiguas en ambos historiales sin borrar la otra cuenta', async () => {
+  const bank = await account(), keep = await account('wallet');
+  const keptExpense = await service.createExpense(db, owner, expense(keep.id));
+  await insertLegacyTransfer(db, owner, transfer(bank.id, keep.id));
+  const before = (await snapshot()).accounts.find((row) => row.id === keep.id)!;
+  await service.deleteAccount(db, owner, bank.id, bank.version);
+  expect((await snapshot()).movements.map((row) => row.id)).toEqual([keptExpense.id]);
+  const history = await service.accountHistory(db, owner, keep.id);
+  expect(history.map((row) => row.movement.id)).toEqual([keptExpense.id]);
+  expect((await snapshot()).accounts[0].version).toBe(before.version + 1);
+});
+
+it('revierte toda la eliminación si falla antes de confirmar la transacción', async () => {
+  const bank = await account();
+  await service.createExpense(db, owner, expense(bank.id));
+  const before = await snapshot();
+  const { synchronize } = await import('../server/finance-sync');
+  await expect(synchronize(db, owner, 'deleteAccount', [bank.id, before.accounts[0].version], month,
+    (tx) => service.deleteAccountInTransaction(tx, owner, bank.id, before.accounts[0].version),
+    () => { throw new Error('rollback'); })).rejects.toThrow('rollback');
+  expect(await snapshot()).toEqual(before);
+});
+
 describe('Cuentas y movimientos informativos', () => {
   it('conserva colores en respaldos y acepta respaldos anteriores sin color', async () => {
     const bank = await service.createAccount(db, owner, { id: randomUUID(), name: 'Galicia', type: 'bank', currency: 'ARS', emoji: '🏦', color: '#ffcc00' });
@@ -40,25 +97,26 @@ describe('Cuentas y movimientos informativos', () => {
     await restoreBackup(db, owner, { ...backup, accounts: backup.accounts.map(({ color, ...rest }) => rest) });
     expect((await snapshot()).accounts[0].color).toBeNull();
   });
-  it('elimina solo cuentas propias, sin referencias y con la versión vigente', async () => {
+  it('elimina solo cuentas propias y con la versión vigente', async () => {
     const bank = await account();
     await expect(service.deleteAccount(db, other, bank.id, bank.version)).rejects.toMatchObject({ status: 404 });
     await expect(service.deleteAccount(db, owner, bank.id, bank.version + 1)).rejects.toMatchObject({ status: 409 });
     await expect(service.deleteAccount(db, owner, bank.id, bank.version)).resolves.toEqual({ ok: true });
     expect((await snapshot()).accounts).toHaveLength(0);
   });
-  it('conserva cuentas con movimientos incluso anulados y con recurrentes o cuotas', async () => {
+  it('elimina cuentas con movimientos incluso anulados y con recurrentes o cuotas', async () => {
     const bank = await account();
     const movement = await service.createExpense(db, owner, expense(bank.id));
     await service.voidMovement(db, owner, movement.id, movement.version);
     const current = (await snapshot()).accounts.find((item) => item.id === bank.id)!;
-    await expect(service.deleteAccount(db, owner, bank.id, current.version)).rejects.toThrow('Archivala');
+    const archived = await service.editAccount(db, owner, bank.id, { name: current.name, emoji: current.emoji, archived: true, version: current.version });
+    await expect(service.deleteAccount(db, owner, bank.id, archived.version)).resolves.toEqual({ ok: true });
     const wallet = await account('wallet');
     await service.createRecurring(db, owner, recurring(wallet.id));
-    await expect(service.deleteAccount(db, owner, wallet.id, wallet.version)).rejects.toThrow('Archivala');
+    await expect(service.deleteAccount(db, owner, wallet.id, wallet.version)).resolves.toEqual({ ok: true });
     const card = await account('credit');
     await service.createPlan(db, owner, { id: randomUUID(), name: 'Compra', emoji: '🛒', category: 'General', accountId: card.id, total: 10000, count: 2, firstDate: date, historicalCount: 0 });
-    await expect(service.deleteAccount(db, owner, card.id, card.version)).rejects.toThrow('Archivala');
+    await expect(service.deleteAccount(db, owner, card.id, card.version)).resolves.toEqual({ ok: true });
   });
   it('guarda y edita gastos sin concepto y los conserva al restaurar un respaldo', async () => {
     const bank = await account();

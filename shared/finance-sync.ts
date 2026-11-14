@@ -1,3 +1,4 @@
+import { categoryIconSchema, recurringIconSchema } from './icons';
 import { z } from 'zod';
 import type { Snapshot } from './domain';
 import type { AuthUser } from './auth';
@@ -28,7 +29,7 @@ export const financeRecordSchemas = {
     counterpart: z.string(), fee: integer, expenseAmount: integer, category: z.string(), emoji: z.string(),
     notes: z.string(), sourceType: z.enum(['single', 'installment', 'recurring']), sourceId: id.nullable(),
     version, voided: z.boolean(), createdAt: z.string().min(1) }),
-  recurring: z.object({ ...owned, ...named, kind: z.enum(['subscription', 'service']), amount: integer,
+  recurring: z.object({ iconKey: recurringIconSchema, ...owned, ...named, kind: z.enum(['subscription', 'service']), amount: integer,
     dueDay: integer.min(1).max(31), startDate: dateSchema, active: z.boolean(), deleted: z.boolean(),
     version, generationFrom: dateSchema.nullable() }),
   occurrences: z.object({ ...owned, ...named, ruleId: id, period: monthSchema, amount: integer,
@@ -38,7 +39,7 @@ export const financeRecordSchemas = {
   installments: z.object({ ...owned, planId: id, number: integer.min(1), amount: integer, dueDate: dateSchema,
     status: z.enum(['pending', 'charged', 'historical', 'cancelled']), movementId: id.nullable() }),
   // Category rows currently include userId even though Category's public type omits it.
-  categories: z.object({ id, userId: id.optional(), name: z.string(), emoji: z.string(),
+  categories: z.object({ iconKey: categoryIconSchema, id, userId: id.optional(), name: z.string(), emoji: z.string(),
     budgetArs: integer.nonnegative(), budgetUsd: integer.nonnegative(), version }),
 };
 const uniqueIds = z.array(id).refine((ids) => new Set(ids).size === ids.length, 'Duplicate IDs');
