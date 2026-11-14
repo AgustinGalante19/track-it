@@ -26,6 +26,12 @@ function initial(epoch = 0, generation = 0): FinanceState {
     lastFullReadAt: 0, materializedThroughMonth: null, refreshing: false, writeCount: 0,
     stale: true, error: null, histories: {}, commitVersion: 0 };
 }
+function withVisibleOccurrences(data: Snapshot): Snapshot {
+  if (!data.occurrences.length) return data;
+  const ruleIds = new Set(data.recurring.filter((rule) => !rule.deleted).map((rule) => rule.id));
+  const occurrences = data.occurrences.filter((period) => ruleIds.has(period.ruleId));
+  return occurrences.length === data.occurrences.length ? data : { ...data, occurrences };
+}
 export function applyFinanceChanges(data: Snapshot, changes: FinanceChanges): Snapshot {
   const next = { ...data };
   for (const key of Object.keys(changes.collections) as (keyof Snapshot)[]) {
@@ -35,7 +41,7 @@ export function applyFinanceChanges(data: Snapshot, changes: FinanceChanges): Sn
     for (const row of delta.upserts) rows.set(row.id, row);
     Object.assign(next, { [key]: [...rows.values()] });
   }
-  return next;
+  return changes.collections.recurring || changes.collections.occurrences ? withVisibleOccurrences(next) : next;
 }
 
 // A shared transport is cancelled only after its last caller leaves or the store invalidates it.
@@ -134,7 +140,7 @@ export function createFinanceStore(initialTransport?: FinanceTransport) {
         if (state.userId && state.userId !== result.userId) resetSession(flight);
         const histories = Object.fromEntries(Object.entries(state.histories).filter(([id]) => result.data.accounts.some((row) => row.id === id))
           .map(([id, history]) => [id, { ...history, stale: true }]));
-        publish({ data: result.data, user: result.user, userId: result.userId, lastFullReadAt: Date.now(),
+        publish({ data: withVisibleOccurrences(result.data), user: result.user, userId: result.userId, lastFullReadAt: Date.now(),
           materializedThroughMonth: horizon, stale: false, error: null, histories, refreshing: false,
           commitVersion: state.commitVersion + 1 });
         refreshVisibleHistories();

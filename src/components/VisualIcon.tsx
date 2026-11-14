@@ -30,6 +30,7 @@ import spotify from "../assets/brands/spotify.svg"
 import netflix from "../assets/brands/netflix.svg"
 import twitch from "../assets/brands/twitch.svg"
 import discord from "../assets/brands/discord.svg"
+import uber from "../assets/brands/uber.svg"
 import "../visual-icons.css"
 
 const catalog = {
@@ -179,6 +180,13 @@ const catalog = {
     color: "#5865f2",
     light: "#4550c2",
     dark: "#aeb5ff",
+  },
+  uber: {
+    label: "Uber",
+    src: uber,
+    color: "#000000",
+    light: "#000000",
+    dark: "#ffffff",
   },
 }
 export function VisualIcon({

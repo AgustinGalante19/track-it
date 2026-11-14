@@ -205,10 +205,13 @@ export async function chargeOccurrence(db: Database, userId: string, occurrenceI
   return timedTransaction(db, (tx) => chargeOccurrenceInTransaction(tx, userId, occurrenceId, input));
 }
 export async function chargeOccurrenceInTransaction(tx: Executor, userId: string, occurrenceId: string, input: { id: string; date: string; amount?: number }) {
-  const [period] = await tx.select().from(s.occurrences).where(and(eq(s.occurrences.id, occurrenceId), eq(s.occurrences.userId, userId)));
-  if (!period) throw new DomainError('No se encontró el período.', 404);
+  const [row] = await tx.select({ period: s.occurrences, ruleDeleted: s.recurring.deleted }).from(s.occurrences)
+    .innerJoin(s.recurring, eq(s.recurring.id, s.occurrences.ruleId))
+    .where(and(eq(s.occurrences.id, occurrenceId), eq(s.occurrences.userId, userId), eq(s.recurring.userId, userId)));
+  if (!row) throw new DomainError('No se encontró el período.', 404);
+  const { period, ruleDeleted } = row;
   if (period.status === 'paid') return period;
-  if (period.status !== 'pending') throw new DomainError('El período fue omitido.');
+  if (period.status !== 'pending' || ruleDeleted) throw new DomainError('El período fue omitido.');
   const existing = await existingMovement(tx, userId, input.id); if (existing) throw new DomainError('Usá una nueva operación para registrar este cargo.', 409);
   const account = await ownedAccount(tx, userId, period.accountId);
   const amount = input.amount ?? period.amount;

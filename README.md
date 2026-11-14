@@ -139,8 +139,8 @@ Las categorías usan un catálogo local de Lucide con selector y búsqueda. Los 
 (incluidos pagos de recurrentes y cuotas) muestran siempre el ícono actual de su
 categoría. Los recurrentes permiten elegir un logo propio o heredar la categoría;
 los accesos rápidos abren el formulario sin crear pagos ni completar precios.
-YouTube, Spotify y Netflix incluyen SVG locales de Simple Icons; las fuentes,
-licencia y condiciones se conservan en `src/assets/brands/`.
+YouTube, Spotify, Netflix, Twitch, Discord y Uber incluyen SVG locales de Simple
+Icons; las fuentes, licencia y condiciones se conservan en `src/assets/brands/`.
 
 Para desplegar esta versión, aplicar primero `pnpm db:migrate` con la migración
 `0007_spicy_dreadnoughts`, desplegar el servidor y luego la interfaz. Las columnas

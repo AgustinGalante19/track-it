@@ -1,11 +1,11 @@
-import { CurrencyFilter } from './components/CurrencyFilter'
-import type { CurrencyView } from './context'
-import { AccountIcon } from './components/AccountIcon'
-import { CategoryIcon, VisualIcon } from './components/VisualIcon'
-import { quickServices, recurringIcon } from '../shared/icons'
+import { CurrencyFilter } from "./components/CurrencyFilter"
+import type { CurrencyView } from "./context"
+import { AccountIcon } from "./components/AccountIcon"
+import { CategoryIcon, VisualIcon } from "./components/VisualIcon"
+import { quickServices, recurringIcon } from "../shared/icons"
 import { useCallback, useState, useSyncExternalStore } from "react"
 import { Link, useParams } from "react-router-dom"
-import { financeStore } from './lib/finance-client'
+import { financeStore } from "./lib/finance-client"
 import {
   ArrowDownLeft,
   ArrowLeft,
@@ -33,6 +33,7 @@ import type {
   Movement,
   Posting,
   InstallmentPlan,
+  Occurrence,
   Recurring,
   Currency,
 } from "../shared/domain"
@@ -128,14 +129,15 @@ export function MovementRow({
   const [actionsOpen, setActionsOpen] = useState(false)
   return (
     <div className={`movement-row ${movement.voided ? "row-voided" : ""}`}>
-      <CategoryIcon category={data.categories.find((c) => c.name === movement.category)} />
+      <CategoryIcon
+        category={data.categories.find((c) => c.name === movement.category)}
+      />
       <div className='row-content'>
-        <strong>
-          {movementTitle(movement)}
-        </strong>
+        <strong>{movementTitle(movement)}</strong>
         <p>
           {dateLabel(movement.date)} <span>·</span>{" "}
-          {source && <AccountIcon account={source} small />}{relation}
+          {source && <AccountIcon account={source} small />}
+          {relation}
         </p>
         {movement.notes && <p className='row-note'>{movement.notes}</p>}
         {showSource && movement.sourceType !== "single" && (
@@ -269,7 +271,9 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
   return (
     <div className='plan-item'>
       <div className='movement-row'>
-        <CategoryIcon category={data.categories.find((c) => c.name === plan.category)} />
+        <CategoryIcon
+          category={data.categories.find((c) => c.name === plan.category)}
+        />
         <button
           className='row-content plan-trigger'
           onClick={() => setExpanded(!expanded)}
@@ -280,8 +284,8 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
             <ChevronDown size={15} className={expanded ? "rotate" : ""} />
           </strong>
           <p>
-            {plan.category} · <AccountIcon account={account} small />{account.name} · {completed} de {plan.count}{" "}
-            registradas
+            {plan.category} · <AccountIcon account={account} small />
+            {account.name} · {completed} de {plan.count} registradas
           </p>
           <div className='progress-track'>
             <span style={{ width: `${(completed / plan.count) * 100}%` }} />
@@ -367,7 +371,9 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
                   description:
                     "Las cuotas pendientes se cancelan. Los cargos ya registrados y su historial se conservan.",
                   action: () =>
-                    mutate(`/plans/${plan.id}/cancel`, { version: plan.version }),
+                    mutate(`/plans/${plan.id}/cancel`, {
+                      version: plan.version,
+                    }),
                   success: "Cuotas futuras canceladas.",
                   destructive: true,
                 })
@@ -381,9 +387,81 @@ function PlanRow({ plan }: { plan: InstallmentPlan }) {
     </div>
   )
 }
+function isOverdue(period: Occurrence, date: string) {
+  return period.status === "pending" && period.dueDate < date
+}
+
+function OverdueRecurringCards() {
+  const { data, open } = useFinance()
+  const date = today()
+  const accounts = new Map(
+    data.accounts.map((account) => [account.id, account]),
+  )
+  const rules = new Map(data.recurring.map((rule) => [rule.id, rule]))
+  const categories = new Map(
+    data.categories.map((category) => [category.name, category]),
+  )
+  const overdue = data.occurrences
+    .flatMap((period) => {
+      const account = accounts.get(period.accountId)
+      const rule = rules.get(period.ruleId)
+      return rule && account && !account.archived && isOverdue(period, date)
+        ? [{ period, account, rule }]
+        : []
+    })
+    .sort((a, b) => a.period.dueDate.localeCompare(b.period.dueDate))
+
+  if (!overdue.length) return null
+
+  return (
+    <ul
+      className='overdue-recurring-list'
+      role='list'
+      aria-label='Recurrentes vencidos'
+    >
+      {overdue.map(({ period, account, rule }) => {
+        const dueDate = `${dateLabel(period.dueDate)} ${period.dueDate.slice(0, 4)}`
+        const actionLabel =
+          account.type === "credit" ? "Registrar cargo" : "Confirmar pago"
+        return (
+          <li className='overdue-recurring-card' key={period.id}>
+            <VisualIcon
+              iconKey={recurringIcon(rule, categories.get(rule.category))}
+            />
+            <div className='row-content'>
+              <strong>{period.name}</strong>
+              <p>
+                <time dateTime={period.dueDate}>{dueDate}</time> ·{" "}
+                <AccountIcon account={account} small />
+                {account.name}
+              </p>
+            </div>
+            <div className='row-end'>
+              <strong>
+                <span className='sr-only'>Importe estimado </span>
+                {formatMoney(period.amount, account.currency)}
+              </strong>
+              <span className='badge badge-warm'>Vencido</span>
+            </div>
+            <Button
+              variant='outline'
+              size='sm'
+              className='recurring-payment-button'
+              aria-label={`${actionLabel} de ${period.name}, vencido el ${dueDate}`}
+              onClick={() => open({ type: "charge", occurrence: period })}
+            >
+              {actionLabel}
+            </Button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 export function ExpensesPage() {
   const { data, month, open } = useFinance()
-  const [currency, setListCurrency] = useState<CurrencyView>('ALL')
+  const [currency, setListCurrency] = useState<CurrencyView>("ALL")
   const [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [accountFilter, setAccountFilter] = useState("all"),
@@ -398,7 +476,7 @@ export function ExpensesPage() {
         !m.voided &&
         m.kind === "expense" &&
         m.sourceType === "single" &&
-        (currency === 'ALL' || m.currency === currency) &&
+        (currency === "ALL" || m.currency === currency) &&
         m.date.startsWith(month) &&
         matches(movementTitle(m), m.accountId, m.category),
     )
@@ -408,7 +486,9 @@ export function ExpensesPage() {
     )
   const plans = data.plans.filter(
     (p) =>
-      (currency === 'ALL' || data.accounts.find((a) => a.id === p.accountId)?.currency === currency) &&
+      (currency === "ALL" ||
+        data.accounts.find((a) => a.id === p.accountId)?.currency ===
+          currency) &&
       matches(p.name, p.accountId, p.category) &&
       data.installments.some(
         (i) =>
@@ -429,7 +509,12 @@ export function ExpensesPage() {
         action={
           <>
             {canAdd ? (
-              <Button onClick={() => { setListCurrency("ALL"); open({ type: "expense" }); }}>
+              <Button
+                onClick={() => {
+                  setListCurrency("ALL")
+                  open({ type: "expense" })
+                }}
+              >
                 <Plus size={18} />
                 Agregar gasto
               </Button>
@@ -442,6 +527,7 @@ export function ExpensesPage() {
           </>
         }
       />
+      <OverdueRecurringCards />
       <div className='list-toolbar'>
         <div className='filter-tabs' role='group' aria-label='Tipo de gasto'>
           {[
@@ -458,7 +544,10 @@ export function ExpensesPage() {
             </button>
           ))}
         </div>
-        <div className="list-search-controls"><CurrencyFilter value={currency} onChange={setListCurrency} /><SearchBox value={search} onChange={setSearch} /></div>
+        <div className='list-search-controls'>
+          <CurrencyFilter value={currency} onChange={setListCurrency} />
+          <SearchBox value={search} onChange={setSearch} />
+        </div>
       </div>
       <div className='secondary-filters'>
         <select
@@ -468,7 +557,7 @@ export function ExpensesPage() {
         >
           <option value='all'>Todas las cuentas</option>
           {data.accounts
-            .filter((a) => currency === 'ALL' || a.currency === currency)
+            .filter((a) => currency === "ALL" || a.currency === currency)
             .map((a) => (
               <option value={a.id} key={a.id}>
                 {a.name}
@@ -519,13 +608,15 @@ export function ExpensesPage() {
 }
 export function RecurringPage() {
   const { data, month, open, confirm, mutate } = useFinance()
-  const [currency, setListCurrency] = useState<CurrencyView>('ALL')
+  const [currency, setListCurrency] = useState<CurrencyView>("ALL")
   const [search, setSearch] = useState("")
+  const date = today()
   const accounts = new Map(data.accounts.map((a) => [a.id, a]))
   const periods = data.occurrences
     .filter(
       (p) =>
-        (currency === 'ALL' || accounts.get(p.accountId)?.currency === currency) &&
+        (currency === "ALL" ||
+          accounts.get(p.accountId)?.currency === currency) &&
         p.name
           .toLocaleLowerCase("es")
           .includes(search.toLocaleLowerCase("es")) &&
@@ -534,7 +625,8 @@ export function RecurringPage() {
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
   const rules = data.recurring.filter(
     (r) =>
-      (currency === 'ALL' || accounts.get(r.accountId)?.currency === currency) &&
+      (currency === "ALL" ||
+        accounts.get(r.accountId)?.currency === currency) &&
       r.name.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")),
   )
   const paused = rules.filter((r) => !r.active)
@@ -550,7 +642,11 @@ export function RecurringPage() {
         ? "No se generarán nuevos períodos. Los pagos anteriores y los pendientes de este mes se conservan."
         : "Se generarán períodos desde este mes. Los meses de la pausa no se cobran retroactivamente.",
       action: () =>
-        mutate(`/recurring/${rule.id}`, { ...rule, active: !rule.active }, "PUT"),
+        mutate(
+          `/recurring/${rule.id}`,
+          { ...rule, active: !rule.active },
+          "PUT",
+        ),
       success: rule.active ? "Recurrente pausado." : "Recurrente reanudado.",
     })
   }
@@ -569,7 +665,14 @@ export function RecurringPage() {
     return (
       <div className='paused-row' key={rule.id}>
         <span>
-          <VisualIcon iconKey={recurringIcon(rule, data.categories.find((c) => c.name === rule.category))} small /> {rule.name}
+          <VisualIcon
+            iconKey={recurringIcon(
+              rule,
+              data.categories.find((c) => c.name === rule.category),
+            )}
+            small
+          />{" "}
+          {rule.name}
         </span>
         <div className='inline-actions'>
           {rule.active && (
@@ -611,24 +714,35 @@ export function RecurringPage() {
                 <details
                   className='quick-services'
                   onBlur={(event) => {
-                    if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false
+                    if (!event.currentTarget.contains(event.relatedTarget))
+                      event.currentTarget.open = false
                   }}
                   onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
+                    if (event.key === "Escape") {
                       event.currentTarget.open = false
-                      event.currentTarget.querySelector('summary')?.focus()
+                      event.currentTarget.querySelector("summary")?.focus()
                     }
                   }}
                 >
-                  <summary className='btn btn-outline'>Agregar rápido <ChevronDown size={15} aria-hidden='true' /></summary>
-                  <div className='quick-service-list' aria-label='Agregar servicios rápidamente'>
+                  <summary className='btn btn-outline'>
+                    Agregar rápido <ChevronDown size={15} aria-hidden='true' />
+                  </summary>
+                  <div
+                    className='quick-service-list'
+                    aria-label='Agregar servicios rápidamente'
+                  >
                     {quickServices.map((preset) => (
-                      <button key={preset.name} onClick={(event) => {
-                        event.currentTarget.closest('details')?.removeAttribute('open')
-                        setSearch('')
-                        setListCurrency('ALL')
-                        open({ type: 'recurring', preset })
-                      }}>
+                      <button
+                        key={preset.name}
+                        onClick={(event) => {
+                          event.currentTarget
+                            .closest("details")
+                            ?.removeAttribute("open")
+                          setSearch("")
+                          setListCurrency("ALL")
+                          open({ type: "recurring", preset })
+                        }}
+                      >
                         <VisualIcon iconKey={preset.iconKey} small />
                         {preset.name}
                         <Plus size={14} aria-hidden='true' />
@@ -636,7 +750,12 @@ export function RecurringPage() {
                     ))}
                   </div>
                 </details>
-                <Button onClick={() => { setListCurrency("ALL"); open({ type: "recurring" }); }}>
+                <Button
+                  onClick={() => {
+                    setListCurrency("ALL")
+                    open({ type: "recurring" })
+                  }}
+                >
                   <Plus size={18} />
                   Agregar recurrente
                 </Button>
@@ -654,24 +773,33 @@ export function RecurringPage() {
         <p className='muted small'>
           Importes estimados hasta que confirmás el pago.
         </p>
-        <div className="list-search-controls"><CurrencyFilter value={currency} onChange={setListCurrency} /><SearchBox value={search} onChange={setSearch} /></div>
+        <div className='list-search-controls'>
+          <CurrencyFilter value={currency} onChange={setListCurrency} />
+          <SearchBox value={search} onChange={setSearch} />
+        </div>
       </div>
       <div className='list-surface recurring-list'>
         {periods.map((period) => {
           const account = accounts.get(period.accountId)!
           const rule = data.recurring.find((r) => r.id === period.ruleId)!
-          const late = period.status === "pending" && period.dueDate < today()
+          const late = isOverdue(period, date)
           const paid = data.movements.find((m) => m.id === period.movementId)
           return (
             <div className='recurring-item' key={period.id}>
               <div className='movement-row'>
-                <VisualIcon iconKey={recurringIcon(rule, data.categories.find((c) => c.name === rule.category))} />
+                <VisualIcon
+                  iconKey={recurringIcon(
+                    rule,
+                    data.categories.find((c) => c.name === rule.category),
+                  )}
+                />
                 <div className='row-content'>
                   <strong>{period.name}</strong>
                   <p>
                     {dateLabel(period.dueDate)} ·{" "}
                     {rule.kind === "subscription" ? "Suscripción" : "Servicio"}{" "}
-                    · <AccountIcon account={account} small />{account.name}
+                    · <AccountIcon account={account} small />
+                    {account.name}
                   </p>
                   {period.period < month && (
                     <span className='badge badge-warm'>
@@ -704,6 +832,7 @@ export function RecurringPage() {
                   <Button
                     variant='outline'
                     size='sm'
+                    className='recurring-payment-button'
                     onClick={() => open({ type: "charge", occurrence: period })}
                   >
                     {account.type === "credit"
@@ -721,31 +850,39 @@ export function RecurringPage() {
                   {rule.active ? <Pause size={13} /> : <Play size={13} />}
                   {rule.active ? "Pausar" : "Reanudar"}
                 </button>
-                <details className='recurring-overflow'><summary aria-label={`Más acciones de ${period.name}`}><MoreHorizontal size={20} /></summary><div className='row-menu-content'>
-                {period.status === "pending" && (
-                  <button
-                    onClick={() =>
-                      confirm({
-                        title: "¿Omitir este período?",
-                        description:
-                          "Este período quedará omitido, sin generar un gasto. Los meses siguientes siguen su regla.",
-                        action: () =>
-                          mutate(
-                            `/occurrences/${encodeURIComponent(period.id)}/skip`,
-                            {},
-                          ),
-                        success: "Período omitido.",
-                      })
-                    }
-                  >
-                    Omitir este período
-                  </button>
-                )}
-                <button className='danger-text' onClick={() => remove(rule)}>
-                  <Trash2 size={13} />
-                  Eliminar recurrente
-                </button>
-                </div></details>
+                <details className='recurring-overflow'>
+                  <summary aria-label={`Más acciones de ${period.name}`}>
+                    <MoreHorizontal size={20} />
+                  </summary>
+                  <div className='row-menu-content'>
+                    {period.status === "pending" && (
+                      <button
+                        onClick={() =>
+                          confirm({
+                            title: "¿Omitir este período?",
+                            description:
+                              "Este período quedará omitido, sin generar un gasto. Los meses siguientes siguen su regla.",
+                            action: () =>
+                              mutate(
+                                `/occurrences/${encodeURIComponent(period.id)}/skip`,
+                                {},
+                              ),
+                            success: "Período omitido.",
+                          })
+                        }
+                      >
+                        Omitir este período
+                      </button>
+                    )}
+                    <button
+                      className='danger-text'
+                      onClick={() => remove(rule)}
+                    >
+                      <Trash2 size={13} />
+                      Eliminar recurrente
+                    </button>
+                  </div>
+                </details>
               </div>
             </div>
           )
@@ -776,7 +913,13 @@ export function RecurringPage() {
 export function AccountPage() {
   const { id } = useParams()
   const { data, open, confirm, month, mutate } = useFinance()
-  const state = useSyncExternalStore(useCallback((listener: () => void) => financeStore.subscribeHistory(id!, listener), [id]), financeStore.getState)
+  const state = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => financeStore.subscribeHistory(id!, listener),
+      [id],
+    ),
+    financeStore.getState,
+  )
   const historyState = state.histories[id!]
   const history = historyState?.rows ?? []
   const account = data.accounts.find((a) => a.id === id)
@@ -795,7 +938,12 @@ export function AccountPage() {
         Volver a Cuentas
       </Link>
       <Header
-        title={<span className="account-name-heading"><AccountIcon account={account} />{account.name}</span>}
+        title={
+          <span className='account-name-heading'>
+            <AccountIcon account={account} />
+            {account.name}
+          </span>
+        }
         description={`${account.currency} · ${account.archived ? "Cuenta archivada" : isCredit ? "Tarjeta de crédito" : account.type === "wallet" ? "Billetera virtual" : account.type === "cash" ? "Efectivo" : "Cuenta bancaria"}`}
         action={
           <Button
@@ -818,10 +966,28 @@ export function AccountPage() {
         )}
       </div>
       <h2 className='list-heading'>Historial de la cuenta</h2>
-      {historyState?.stale && <p role={historyState.error ? 'alert' : 'status'} className='muted small'>
-        {historyState.error ? 'No pudimos actualizar el historial.' : 'Actualizando historial…'}
-        {historyState.error && <Button variant='ghost' onClick={() => void financeStore.loadHistory({ accountId: id!, force: true }).catch(() => {})}>Reintentar</Button>}
-      </p>}
+      {historyState?.stale && (
+        <p
+          role={historyState.error ? "alert" : "status"}
+          className='muted small'
+        >
+          {historyState.error
+            ? "No pudimos actualizar el historial."
+            : "Actualizando historial…"}
+          {historyState.error && (
+            <Button
+              variant='ghost'
+              onClick={() =>
+                void financeStore
+                  .loadHistory({ accountId: id!, force: true })
+                  .catch(() => {})
+              }
+            >
+              Reintentar
+            </Button>
+          )}
+        </p>
+      )}
       <div className='list-surface'>
         {[...history]
           .sort(

@@ -110,6 +110,10 @@ export async function synchronize<T>(db: Database, userId: string, operation: Sy
     const changes: FinanceChanges = { version: 1, collections: {}, historyAccountIds: [] };
     const forcePayment = operation === 'chargeOccurrence' || operation === 'chargeInstallment';
     const forceRetry = ['createAccount', 'createExpense', 'createIncome', 'voidMovement', 'createRecurring', 'createPlan'].includes(operation);
+    const deletedRuleId = operation === 'deleteRecurring' ? id : undefined;
+    // A retry can come from a client that never received the first removal.
+    const deletedPeriods = deletedRuleId ? await tx.select({ id: s.occurrences.id }).from(s.occurrences)
+      .where(and(eq(s.occurrences.userId, userId), eq(s.occurrences.ruleId, deletedRuleId))) : [];
     for (const key of keys) {
       const after = await read(key, selection(key));
       const previous = new Map(before.get(key)!.map((row) => [row.id, row]));
@@ -118,7 +122,9 @@ export async function synchronize<T>(db: Database, userId: string, operation: Sy
         || (forcePayment && (key === 'movements' || key === 'accounts' || key === collection))
         || (forceRetry && (key === collection || key === 'accounts'
           || (operation === 'createPlan' && key === 'installments') || (operation === 'createRecurring' && key === 'occurrences'))));
-      const removes = [...previous.keys()].filter((rowId) => !currentIds.has(rowId));
+      const removes = key === 'recurring' && deletedRuleId ? [deletedRuleId]
+        : key === 'occurrences' && deletedRuleId ? deletedPeriods.map((row) => row.id)
+        : [...previous.keys()].filter((rowId) => !currentIds.has(rowId));
       if (upserts.length || removes.length) {
         // Each scoped query is typed by its collection; this assignment bridges mapped-type indexing.
         Object.assign(changes.collections, { [key]: { upserts, removes } });

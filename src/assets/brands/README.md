@@ -1,9 +1,9 @@
 # Bundled brand SVGs
 
-YouTube, Spotify, Netflix, Twitch and Discord SVGs are vendored from the official
+YouTube, Spotify, Netflix, Twitch, Discord and Uber SVGs are vendored from the official
 [Simple Icons repository](https://github.com/simple-icons/simple-icons/tree/develop/icons)
 (YouTube, Spotify and Netflix retrieved 2026-10-14; Twitch and Discord retrieved
-2026-10-15). See `sources.json` for each brand's upstream source and
+2026-10-15; Uber retrieved 2026-11-14). See `sources.json` for each brand's upstream source and
 guidelines. The upstream catalog contains no separate icon-specific license
 entry for these assets at retrieval time.
 

@@ -118,9 +118,12 @@ describe('transactional synchronization matrix', () => {
     const renamed = await sync(`/categories/${categoryId}`, 'PATCH', { name: 'PCACHE-Renamed', emoji: 'C', budgetArs: 10, budgetUsd: 0, version: 1 });
     expect(renamed.changes.collections.recurring?.upserts.map((row) => row.id)).toEqual([rule.id]);
     await sync(`/categories/${categoryId}`, 'DELETE', { version: 2, replacementId: null });
-    const currentRule = (await snapshot()).recurring.find((row) => row.id === rule.id)!;
+    const beforeDeletion = await snapshot();
+    const currentRule = beforeDeletion.recurring.find((row) => row.id === rule.id)!;
     const deletion = await sync(`/recurring/${rule.id}`, 'DELETE', { version: currentRule.version });
     expect(deletion.changes.collections.occurrences?.removes).toHaveLength(3);
+    const deletionRetry = await sync(`/recurring/${rule.id}`, 'DELETE', { version: currentRule.version });
+    expect(normalized(apply(beforeDeletion, deletionRetry.changes))).toEqual(normalized(await snapshot()));
     expect((await snapshot()).movements.some((row) => row.id === charge.id)).toBe(true);
     const hiddenVoid = await sync(`/movements/${charge.id}/void`, 'POST', { version: (await snapshot()).movements.find((row) => row.id === charge.id)!.version });
     expect(hiddenVoid.changes.collections.occurrences).toBeUndefined();

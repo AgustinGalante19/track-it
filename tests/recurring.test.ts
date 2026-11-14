@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Layout } from '../src/Layout';
-import { RecurringPage } from '../src/pages';
+import { ExpensesPage, RecurringPage } from '../src/pages';
 import { send } from '../src/lib/api';
 import { financeStore } from '../src/lib/finance-store';
-import { addMonth, today, type Snapshot } from '../shared/domain';
+import { addMonth, today, type Occurrence, type Recurring, type Snapshot } from '../shared/domain';
 
 vi.mock('../src/components/UpdatePrompt', () => ({ UpdatePrompt: () => null }));
 vi.mock('../src/lib/api', () => ({ send: vi.fn(), api: vi.fn(), authClient: {} }));
@@ -23,6 +23,115 @@ beforeEach(() => {
   localStorage.clear();
 });
 afterEach(() => { cleanup(); financeStore.resetSession(); vi.unstubAllGlobals(); });
+
+it('permite registrar desde Inicio un débito recurrente vencido de otro mes y moneda', async () => {
+  const date = today();
+  const dueDate = addMonth(date, -1);
+  const accountId = '12345678-1234-4234-8234-123456789012';
+  const creditId = '34567890-1234-4234-8234-123456789012';
+  const creditRuleId = '45678901-1234-4234-8234-123456789012';
+  const account = { userId: 'owner', emoji: '🏦', archived: false, version: 1, color: null };
+  const occurrence: Occurrence = {
+    id: `${ruleId}:${dueDate.slice(0, 7)}`, ruleId, userId: 'owner', period: dueDate.slice(0, 7),
+    name: 'Débito en dólares', accountId, amount: 12500, emoji: '📺', category: 'Servicios',
+    dueDate, status: 'pending', movementId: null,
+  };
+  const rule: Recurring = {
+    id: ruleId, name: occurrence.name, accountId, amount: occurrence.amount, category: occurrence.category,
+    emoji: occurrence.emoji, userId: 'owner', iconKey: 'category', kind: 'service',
+    dueDay: Number(dueDate.slice(8)), startDate: dueDate, active: true, deleted: false, version: 1, generationFrom: null,
+  };
+  let data: Snapshot = {
+    accounts: [
+      { ...account, id: accountId, name: 'Banco', type: 'bank', currency: 'USD' },
+      { ...account, id: creditId, name: 'Tarjeta', type: 'credit', currency: 'ARS' },
+    ],
+    occurrences: [
+      occurrence,
+      { ...occurrence, id: 'credit', ruleId: creditRuleId, accountId: creditId, name: 'Cargo de tarjeta' },
+      { ...occurrence, id: 'credit-current', ruleId: creditRuleId, accountId: creditId, name: 'Cargo de este mes', period: month, dueDate: date },
+      { ...occurrence, id: 'today', period: date.slice(0, 7), dueDate: date, name: 'Vence hoy' },
+      { ...occurrence, id: 'skipped', status: 'skipped', name: 'Período omitido' },
+      { ...occurrence, id: 'orphan', ruleId: 'removed', name: 'Vencimiento eliminado' },
+      { ...occurrence, id: 'orphan-current', ruleId: 'removed', period: month, dueDate: date },
+      { ...occurrence, id: 'deleted', ruleId: 'deleted', name: 'Recurrente eliminado' },
+    ],
+    recurring: [
+      rule,
+      { ...rule, id: creditRuleId, accountId: creditId, name: 'Cargo de tarjeta', iconKey: 'netflix' },
+      { ...rule, id: 'deleted', deleted: true, active: false },
+    ],
+    categories: [{ id: 'service', name: rule.category, emoji: '💡', iconKey: 'water', budgetArs: 0, budgetUsd: 0, version: 1 }],
+    movements: [], plans: [], installments: [],
+  };
+  const path = `/occurrences/${encodeURIComponent(occurrence.id)}/charge`;
+  vi.mocked(send).mockImplementation(async <T>(url: string) => {
+    if (url === path) {
+      data = { ...data, occurrences: data.occurrences.map((period) =>
+        period.id === occurrence.id ? { ...period, status: 'paid' } : period) };
+    }
+    return { ok: true } as T;
+  });
+  financeStore.setTransport({
+    bootstrap: async () => ({ data, userId: 'owner', user: { name: 'Persona', email: 'persona@cuentas.invalid', username: 'persona' } }),
+    history: async () => [],
+    mutation: ({ path, body, method }) => send(path, body, method),
+  });
+  const router = createMemoryRouter([{
+    path: '/', element: createElement(Layout), HydrateFallback: () => null,
+    loader: () => financeStore.load({ month }),
+    children: [
+      { index: true, element: createElement(ExpensesPage) },
+      { path: 'recurrentes', element: createElement(RecurringPage) },
+    ],
+  }], { initialEntries: [`/?mes=${month}`] });
+  render(createElement(RouterProvider, { router }));
+
+  const overdue = within(await screen.findByRole('list', { name: 'Recurrentes vencidos' }));
+  const [debitCard, creditCard] = overdue.getAllByRole('listitem');
+  expect(overdue.getAllByRole('listitem')).toHaveLength(2);
+  expect(screen.queryByRole('heading', { name: 'Recurrentes vencidos' })).toBeNull();
+  expect(overdue.queryByText(/Si ya pagaste/)).toBeNull();
+  expect(within(debitCard).getByText('USD 125')).toBeTruthy();
+  expect(within(debitCard).getByText('Vencido')).toBeTruthy();
+  expect(within(creditCard).getByText('Vencido')).toBeTruthy();
+  expect(within(creditCard).getByRole('button', { name: /Registrar cargo de Cargo de tarjeta/ })).toBeTruthy();
+  expect(debitCard.querySelector('[data-icon="water"]')).toBeTruthy();
+  expect(creditCard.querySelector('[data-icon="netflix"]')).toBeTruthy();
+  expect(overdue.queryByText(occurrence.emoji)).toBeNull();
+  expect(screen.getByText('2 por confirmar')).toBeTruthy();
+
+  fireEvent.click(within(debitCard).getByRole('button', { name: /Confirmar pago de Débito en dólares/ }));
+  const dialog = within(await screen.findByRole('dialog', { name: 'Confirmar pago' }));
+  const amount = dialog.getByLabelText<HTMLInputElement>('Importe real en USD');
+  expect(amount.value).toBe('125,00');
+  fireEvent.change(amount, { target: { value: '129,50' } });
+  fireEvent.change(dialog.getByLabelText('Fecha efectiva del cargo o débito'), { target: { value: dueDate } });
+  fireEvent.click(dialog.getByRole('button', { name: 'Confirmar pago' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(send).toHaveBeenCalledExactlyOnceWith(path, expect.objectContaining({ amount: 12950, date: dueDate }), 'POST');
+  expect(overdue.queryByText('Débito en dólares')).toBeNull();
+  expect(overdue.getByText('Cargo de tarjeta')).toBeTruthy();
+
+  const deletePath = `/recurring/${creditRuleId}`;
+  vi.mocked(send).mockImplementationOnce(async <T>() => ({
+    result: { ok: true }, changes: { version: 1, collections: {
+      recurring: { upserts: [], removes: [creditRuleId] },
+    }, historyAccountIds: [] },
+  }) as T);
+  const navigation = within(screen.getByRole('navigation', { name: 'Secciones principales' }));
+  fireEvent.click(navigation.getByRole('link', { name: 'Recurrentes' }));
+  await screen.findByRole('heading', { name: 'Recurrentes' });
+  const credit = screen.getByText('Cargo de tarjeta').closest('.recurring-item') as HTMLElement;
+  fireEvent.click(within(credit).getByRole('button', { name: 'Eliminar recurrente' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+  await screen.findByText('Recurrente eliminado.');
+  expect(send).toHaveBeenLastCalledWith(deletePath, { version: 1 }, 'DELETE');
+  fireEvent.click(navigation.getByRole('link', { name: 'Gastos' }));
+  await screen.findByRole('heading', { name: 'Gastos' });
+  expect(screen.queryByRole('list', { name: 'Recurrentes vencidos' })).toBeNull();
+  expect(screen.getByText('1 por confirmar')).toBeTruthy();
+});
 
 async function showRecurring(state: 'active' | 'paused' | 'future' = 'active') {
   const accountId = '12345678-1234-4234-8234-123456789012';
