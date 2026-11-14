@@ -1,3 +1,4 @@
+import { categoryIconSchema } from '../shared/icons';
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
@@ -27,7 +28,7 @@ const backupSchema = z.object({
   occurrences: z.array(z.object({ id: z.string().max(80), ruleId: idSchema, period: monthSchema, name: short, emoji: z.string().min(1).max(16), category: short, accountId: idSchema, amount: moneySchema, dueDate: dateSchema, status: z.enum(['pending', 'paid', 'skipped']), movementId: idSchema.nullable() })).max(10000),
   plans: z.array(planInputSchema.extend({ active: z.boolean(), ...state })).max(1000),
   installments: z.array(z.object({ id: idSchema, planId: idSchema, number: z.number().int().min(1).max(60), amount: moneySchema, dueDate: dateSchema, status: z.enum(['pending', 'charged', 'historical', 'cancelled']), movementId: idSchema.nullable() })).max(10000),
-  categories: z.array(z.object({ id: idSchema, name: short, emoji: z.string().min(1).max(16), budgetArs: signedMoneySchema.nonnegative().default(0), budgetUsd: signedMoneySchema.nonnegative().default(0), version: z.number().int().min(1).default(1) })).max(500),
+  categories: z.array(z.object({ iconKey: categoryIconSchema, id: idSchema, name: short, emoji: z.string().min(1).max(16), budgetArs: signedMoneySchema.nonnegative().default(0), budgetUsd: signedMoneySchema.nonnegative().default(0), version: z.number().int().min(1).default(1) })).max(500),
 });
 function withoutOwner<T extends { userId: string }>(rows: T[]) { return rows.map(({ userId, ...rest }) => rest); }
 export async function exportBackup(db: Database, userId: string) {

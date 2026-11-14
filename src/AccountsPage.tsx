@@ -1,6 +1,7 @@
+import { AccountIcon } from './components/AccountIcon';
 import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, ArrowRight, Banknote, CreditCard, Edit3, Landmark, Plus, RotateCcw, Search, Trash2, Wallet } from 'lucide-react';
+import { Archive, ArrowRight, Edit3, Plus, RotateCcw, Search, Trash2, Wallet } from 'lucide-react';
 import { useFinance } from './context';
 import { Button } from './components/ui/button';
 
@@ -8,7 +9,6 @@ import { accountColor, accountIconColor, accountTypes } from './lib/account-appe
 import type { FinanceAccount } from '../shared/domain';
 import './accounts.css';
 
-const icons = { bank: Landmark, wallet: Wallet, cash: Banknote, credit: CreditCard };
 
 export function AccountsPage() {
   const { data, month, open, confirm, mutate } = useFinance();
@@ -27,7 +27,7 @@ export function AccountsPage() {
   function remove(account: FinanceAccount) {
     confirm({
       title: `¿Eliminar ${account.name}?`,
-      description: 'Se eliminará de forma permanente. Solo se pueden eliminar cuentas sin movimientos, cuotas ni recurrentes. Si tiene registros, archivala para conservar su historial.',
+      description: 'Se eliminarán esta cuenta y sus movimientos, cuotas y recurrentes asociados. Las transferencias antiguas vinculadas también desaparecerán del historial de la otra cuenta. Esta acción no se puede deshacer.',
       action: () => mutate(`/accounts/${account.id}`, { version: account.version }, 'DELETE'),
       success: 'Cuenta eliminada.', destructive: true,
     });
@@ -43,11 +43,10 @@ export function AccountsPage() {
     </div>
     <p className="accounts-caption">Todas tus monedas · {rows.length} {rows.length === 1 ? 'cuenta' : 'cuentas'}</p>
     {rows.length ? <div className="accounts-grid">{rows.map((account) => {
-      const Icon = icons[account.type];
       const color = account.color ?? accountColor(account.name, account.type);
       return <article className="account-card" key={account.id} aria-label={account.name} style={{ '--account-color': color, '--account-ink': accountIconColor(color) } as CSSProperties}>
         <div className="account-card-body">
-          <div className="account-card-top"><span className="account-card-icon"><Icon size={25} aria-hidden="true" /></span><span className="account-currency">{account.currency}</span></div>
+          <div className="account-card-top"><AccountIcon account={account} /><span className="account-currency">{account.currency}</span></div>
           <Link className="account-card-title" to={`/cuentas/${account.id}?mes=${month}`}><h2>{account.name}</h2></Link>
           <p className="muted small">{accountTypes[account.type]}{account.archived && ' · Archivada'}</p>
         </div>
@@ -61,6 +60,6 @@ export function AccountsPage() {
         </div>
       </article>;
     })}</div> : <div className="list-surface empty-state"><span className="empty-icon" aria-hidden="true"><Wallet size={30} /></span><h3>{search ? 'No encontramos esa cuenta' : archived ? 'No tenés cuentas archivadas' : 'Tu primera cuenta, el primer paso'}</h3><p>{search ? 'Probá con otro nombre o cambiá de pestaña.' : archived ? 'Las cuentas que archives aparecerán acá con su historial.' : 'Agregá un banco, billetera, tarjeta o efectivo para empezar a registrar tus gastos.'}</p>{!search && !archived && <Button variant="outline" onClick={() => open({ type: 'account' })}><Plus size={16} />Crear mi primera cuenta</Button>}</div>}
-    <p className="muted small accounts-footnote">Archivá las cuentas que ya no usás para conservar su historial. Podés eliminar las que todavía no tienen registros.</p>
+    <p className="muted small accounts-footnote">Archivá las cuentas que ya no usás para conservar su historial. También podés eliminarlas definitivamente junto con sus registros asociados.</p>
   </>;
 }
