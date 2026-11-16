@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, primaryKey, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type { Currency, AccountType, Movement, Occurrence, Installment } from '../../shared/domain';
 
 export const user = sqliteTable('user', {
@@ -13,6 +13,21 @@ export const session = sqliteTable('session', {
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(), ipAddress: text('ip_address'), userAgent: text('user_agent'),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
 }, (t) => [index('session_user_idx').on(t.userId)]);
+export const pushSubscriptions = sqliteTable('push_subscription', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  sessionId: text('session_id').notNull(),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  daysBefore: integer('days_before').notNull(),
+}, (t) => [index('push_subscription_user_idx').on(t.userId), index('push_subscription_session_idx').on(t.sessionId)]);
+export const pushReminderDeliveries = sqliteTable('push_reminder_delivery', {
+  subscriptionId: text('subscription_id').notNull().references(() => pushSubscriptions.id, { onDelete: 'cascade' }),
+  dueDate: text('due_date').notNull(),
+  leaseUntil: integer('lease_until').notNull(),
+  sentAt: integer('sent_at'),
+}, (t) => [primaryKey({ columns: [t.subscriptionId, t.dueDate] })]);
 export const account = sqliteTable('account', {
   id: text('id').primaryKey(), accountId: text('account_id').notNull(), providerId: text('provider_id').notNull(),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),

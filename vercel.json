@@ -2,6 +2,7 @@
   "framework": "vite",
   "buildCommand": "pnpm build",
   "outputDirectory": "dist",
+  "crons": [{ "path": "/api/cron/recurring-reminders", "schedule": "0 12 * * *" }],
   "rewrites": [
     { "source": "/api", "destination": "/api/index" },
     { "source": "/api/:path*", "destination": "/api/index" },

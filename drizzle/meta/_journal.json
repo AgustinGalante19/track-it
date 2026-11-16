@@ -57,6 +57,13 @@
       "when": 1792016805858,
       "tag": "0007_spicy_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794827587497,
+      "tag": "0008_push-reminders",
+      "breakpoints": true
     }
   ]
 }

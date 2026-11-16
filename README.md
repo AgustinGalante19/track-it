@@ -96,6 +96,16 @@ pnpm preview
 
 La vista previa sirve el build y la API local en el mismo puerto 5173. En esta PC también podés usar `scripts/start-local.ps1 -Preview` después de compilar.
 
+### Avisos de recurrentes en Android
+
+En Android, abrí Track It por **HTTPS** y entrá a **Configuración → Avisos de recurrentes**. Elegí entre 1 y 30 días de anticipación, activá los avisos y aceptá el permiso del navegador. La configuración es por dispositivo y el valor inicial es 1 día. Al cerrar sesión se desactivan los avisos de ese navegador.
+
+El envío se programa desde las **9:00 de Argentina**. Si hay varios recurrentes pendientes para el mismo día, el aviso muestra el primero y cuántos más vencen. Al tocarlo se abre el mes correspondiente en Recurrentes. La recepción depende de la conexión y de los permisos de Android.
+
+1. Generá un par de claves una sola vez con `pnpm exec web-push generate-vapid-keys --json`. Guardá los valores en `VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY` del servidor. Definí `VAPID_SUBJECT` con un contacto `mailto:` o una URL HTTPS.
+2. Con Node/Docker, el servidor aplica la migración al arrancar y comprueba los avisos cada cinco minutos. Para probar desde el teléfono, usá la versión compilada de la PWA servida por HTTPS, por ejemplo con `pnpm preview` y ngrok.
+3. En Vercel, aplicá `pnpm db:migrate` contra la base del entorno y configurá también `CRON_SECRET` con un valor aleatorio. El cron de producción corre a las 12:00 UTC, que corresponde a las 9:00 de Argentina. En Hobby, Vercel puede ejecutar el cron dentro de esa hora. [Documentación de Vercel](https://vercel.com/docs/schedules/cron-jobs/usage-and-pricing).
+
 El build genera manifiesto, iconos y service worker con actualización confirmada por el usuario. Cachea el HTML de la aplicación y sus recursos estáticos como una misma versión; **API y autenticación nunca se cachean**. Después de instalar/aceptar la actualización del service worker, reabrir o recargar reutiliza el HTML y JavaScript locales. La interfaz puede arrancar sin red, pero muestra un error de conexión si no puede consultar los datos. Los archivos con hash de `assets/` tienen caché HTTP de un año en Vercel; `index.html` y `sw.js` se revalidan. Consultar o guardar movimientos requiere conexión, como definimos para esta etapa. La instalación real desde celular requiere un despliegue HTTPS y todavía no se probó en dispositivos físicos.
 
 ## Estructura

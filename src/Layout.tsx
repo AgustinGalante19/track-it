@@ -142,6 +142,8 @@ export function Layout() {
     const result = await authClient.signOut()
     if (result.error)
       throw new Error("No pudimos cerrar la sesión. Volvé a intentarlo.")
+    const { clearLocalPushOnSignOut } = await import("./lib/push-notifications")
+    await clearLocalPushOnSignOut()
     financeStore.resetSession()
     setComposer(null)
     navigate("/acceso", { replace: true })

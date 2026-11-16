@@ -5,9 +5,11 @@ import { loadFinance, shouldReloadFinance } from '../src/lib/route-data';
 import { financeStore } from '../src/lib/finance-store';
 
 vi.mock('../src/lib/api', async (original) => ({ ...await original<typeof import('../src/lib/api')>(), api: vi.fn() }));
-afterEach(() => { financeStore.resetSession(); vi.mocked(api).mockReset(); vi.unstubAllGlobals(); });
+afterEach(() => { financeStore.resetSession(); vi.mocked(api).mockReset(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 it('carga sesión y datos con una sola solicitud cancelable', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-01T12:00:00Z'));
   const value = { data: { accounts: [], movements: [], categories: [], recurring: [], occurrences: [], plans: [], installments: [] }, user: { name: 'Persona' }, userId: 'fictional' };
   vi.mocked(api).mockResolvedValue(value);
   const request = new Request('https://track.test/?mes=2026-10');

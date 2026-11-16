@@ -21,8 +21,11 @@ export function parseMoney(raw: string, allowNegative = false): number | null {
 export function moneyInput(cents: number) { return (cents / 100).toFixed(2).replace('.', ','); }
 const wholeFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const decimalFormatter = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export function formatMoneyAmount(cents: number) {
+  return (cents % 100 ? decimalFormatter : wholeFormatter).format(cents / 100);
+}
 export function formatMoney(cents: number, currency: 'ARS' | 'USD') {
-  return `${currency} ${(cents % 100 ? decimalFormatter : wholeFormatter).format(cents / 100)}`;
+  return `${currency} ${formatMoneyAmount(cents)}`;
 }
 export function splitInstallments(total: number, count: number): number[] {
   if (!Number.isSafeInteger(total) || !Number.isInteger(count) || count < 2 || count > 60 || total < count || total > MAX_MONEY) throw new Error('Plan de cuotas inválido.');
@@ -38,6 +41,9 @@ export function addMonth(date: string, offset: number) {
   const [year, month, day] = date.split('-').map(Number);
   const target = new Date(Date.UTC(year, month - 1 + offset, 1));
   return monthDate(target.toISOString().slice(0, 7), day);
+}
+export function recurringStartMonth({ startDate, generationFrom }: { startDate: string; generationFrom: string | null }) {
+  return (generationFrom && generationFrom > startDate ? generationFrom : startDate).slice(0, 7);
 }
 const calendarFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' });
 export function today() { return calendarFormatter.format(new Date()); }

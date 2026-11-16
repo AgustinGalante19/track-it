@@ -57,6 +57,7 @@ export default defineConfig(({ mode, command }) => {
           ],
         },
         workbox: {
+          importScripts: ["/push-notifications.js"],
           globPatterns: ["**/*.{js,css,png,svg,woff2,html}"],
           // El HTML y sus chunks pertenecen a la misma versión. Al reabrir la
           // app se usa ese shell local; los datos privados siempre van a la API.

@@ -5,6 +5,7 @@ import { and, eq, getTableColumns, gt, inArray, lte, sql } from 'drizzle-orm';
 import type { Database } from './db/client';
 import * as s from './db/schema';
 import { addMonth, monthDate, splitInstallments, today, MAX_MONEY } from '../shared/domain';
+import { recurringStartMonth } from '../shared/format';
 import { initializeCategories } from './categories';
 import type { AccountInput, ExpenseInput, RecurringInput, PlanInput, Movement, Snapshot } from '../shared/domain';
 
@@ -192,7 +193,7 @@ export async function materializeOccurrences(db: Executor, userId: string, throu
   const values: (typeof s.occurrences.$inferInsert)[] = [];
   for (const rule of rules) {
     // Materializar hasta el mes consultado. Limitar cada pasada evita solicitudes desproporcionadas.
-    let month = (rule.generationFrom && rule.generationFrom > rule.startDate ? rule.generationFrom : rule.startDate).slice(0, 7);
+    let month = recurringStartMonth(rule);
     for (let n = 0; month <= throughMonth && n < 1212; n++, month = addMonth(`${month}-01`, 1).slice(0, 7)) {
       const dueDate = monthDate(month, rule.dueDay);
       if (dueDate < rule.startDate || existing.has(`${rule.id}:${month}`)) continue;

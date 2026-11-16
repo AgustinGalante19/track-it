@@ -14,6 +14,7 @@ import { createCategory, editCategory, deleteCategory } from "./sync-service"
 import { withFinanceSync } from "./finance-sync"
 import { demoEnabled, prepareDemo } from "./demo"
 import { exportBackup, restoreBackup } from "./backup"
+import { getPushConfig, pushEndpointInput, pushSubscriptionInput, pushSubscriptionStatus, removePushSubscription, removeSessionPushSubscriptions, savePushSubscription } from "./push-subscriptions"
 import {
   accountInputSchema,
   accountColorSchema,
@@ -28,7 +29,7 @@ import {
   today,
 } from "../shared/domain"
 
-type Env = { Variables: { userId: string; sessionCreatedAt: number; user: AuthUser } }
+type Env = { Variables: { userId: string; sessionId: string; sessionCreatedAt: number; user: AuthUser } }
 export const app = new Hono<Env>()
 app.use("/api/*", async (c, next) => withTimings(async () => {
   c.header("Cache-Control", "no-store")
@@ -63,14 +64,30 @@ app.post("/api/demo", async (c) => {
   await prepareDemo()
   return c.json({ ok: true })
 })
+app.post("/api/auth/sign-out", async (c) => {
+  const origin = c.req.header("Origin")
+  if (origin && !trustedOrigins.includes(origin))
+    return c.json({ error: "Origen no permitido." }, 403)
+  const headers = c.req.raw.headers
+  const current = await auth.api.getSession({ headers, query: { disableRefresh: true } })
+  const response = await auth.handler(c.req.raw)
+  if (response.ok && current) {
+    await removeSessionPushSubscriptions(db, current.user.id, current.session.id).catch(() => {
+      console.error('No se pudieron eliminar las suscripciones de notificaciones al cerrar sesión.')
+    })
+  }
+  return response
+})
 app.on(["GET", "POST", "PATCH", "DELETE"], "/api/auth/*", (c) =>
   auth.handler(c.req.raw),
 )
+app.get("/api/cron/recurring-reminders", async (c) => (await import("./reminder-job")).handleReminderCron(c.req.raw, db))
 app.use("/api/*", async (c, next) => {
   const session = await timed("auth", () => auth.api.getSession({ headers: c.req.raw.headers }))
   if (!session)
     return c.json({ error: "Tu sesión venció. Volvé a ingresar." }, 401)
   c.set("userId", session.user.id)
+  c.set("sessionId", session.session.id)
   const { name, email, username, image } = session.user
   c.set("user", { name, email, username, image })
   c.set("sessionCreatedAt", session.session.createdAt.getTime())
@@ -102,6 +119,23 @@ async function body<T extends z.ZodType>(
   }
   return validator.parse(input)
 }
+app.get("/api/notifications/config", (c) =>
+  c.json({ publicKey: getPushConfig()?.publicKey ?? null }),
+)
+app.post("/api/notifications/subscription/status", async (c) => {
+  const { endpoint } = await body(c.req, pushEndpointInput)
+  return c.json(await pushSubscriptionStatus(db, c.get("userId"), endpoint))
+})
+app.put("/api/notifications/subscription", async (c) => {
+  if (!getPushConfig()) return c.json({ error: "Los recordatorios no están disponibles." }, 503)
+  const input = await body(c.req, pushSubscriptionInput)
+  return c.json(await savePushSubscription(db, c.get("userId"), c.get("sessionId"), input))
+})
+app.delete("/api/notifications/subscription", async (c) => {
+  const { endpoint } = await body(c.req, pushEndpointInput)
+  await removePushSubscription(db, c.get("userId"), endpoint)
+  return c.json({ ok: true })
+})
 app.post("/api/password", async (c) => {
   // setPassword valida la sesión, pero agregar otro método de acceso exige volver a autenticarse.
   if (Date.now() - c.get("sessionCreatedAt") >= 10 * 60 * 1000)
@@ -314,7 +348,7 @@ app.onError((error, c) => {
       400,
     )
   if (error instanceof service.DomainError)
-    return c.json({ error: error.message }, error.status as 400 | 404 | 409)
+    return c.json({ error: error.message }, error.status as 400 | 401 | 404 | 409)
   if (error instanceof HTTPException)
     return c.json({ error: "Solicitud no válida." }, error.status)
   console.error("[api]", error.name, error.message)
