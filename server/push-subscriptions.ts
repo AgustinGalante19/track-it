@@ -59,6 +59,11 @@ export function getPushConfig() {
   }
 }
 
+export function getTestPushConfig(userId: string) {
+  const adminUserId = process.env.PUSH_TEST_ADMIN_USER_ID?.trim();
+  return adminUserId && userId === adminUserId ? getPushConfig() : null;
+}
+
 export async function pushSubscriptionStatus(db: Database, userId: string, endpoint: string) {
   const [subscription] = await db.select({ daysBefore: pushSubscriptions.daysBefore }).from(pushSubscriptions)
     .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint)));

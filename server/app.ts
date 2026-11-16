@@ -14,7 +14,7 @@ import { createCategory, editCategory, deleteCategory } from "./sync-service"
 import { withFinanceSync } from "./finance-sync"
 import { demoEnabled, prepareDemo } from "./demo"
 import { exportBackup, restoreBackup } from "./backup"
-import { getPushConfig, pushEndpointInput, pushSubscriptionInput, pushSubscriptionStatus, removePushSubscription, removeSessionPushSubscriptions, savePushSubscription } from "./push-subscriptions"
+import { getPushConfig, getTestPushConfig, pushEndpointInput, pushSubscriptionInput, pushSubscriptionStatus, removePushSubscription, removeSessionPushSubscriptions, savePushSubscription } from "./push-subscriptions"
 import {
   accountInputSchema,
   accountColorSchema,
@@ -122,6 +122,15 @@ async function body<T extends z.ZodType>(
 app.get("/api/notifications/config", (c) =>
   c.json({ publicKey: getPushConfig()?.publicKey ?? null }),
 )
+app.get("/api/notifications/test", (c) =>
+  c.json({ enabled: !!getTestPushConfig(c.get("userId")) }),
+)
+app.post("/api/notifications/test", async (c) => {
+  const config = getTestPushConfig(c.get("userId"))
+  if (!config) return c.json({ error: "El envío de avisos de prueba no está habilitado para tu cuenta." }, 403)
+  const { sendTestPushNotifications } = await import("./reminder-job")
+  return c.json(await sendTestPushNotifications(db, config))
+})
 app.post("/api/notifications/subscription/status", async (c) => {
   const { endpoint } = await body(c.req, pushEndpointInput)
   return c.json(await pushSubscriptionStatus(db, c.get("userId"), endpoint))

@@ -17,12 +17,28 @@ const intervalMs = 5 * 60_000;
 
 type Target = typeof subscriptions.$inferSelect;
 type SendReminder = (target: Target, payload: ReminderPayload, ttl: number) => Promise<unknown>;
+type PushConfig = NonNullable<ReturnType<typeof getPushConfig>>;
+type TestPushPayload = { kind: 'test'; title: string; body: string };
 
 function sameSubscription(target: Target) {
   return and(eq(subscriptions.id, target.id), eq(subscriptions.userId, target.userId),
     eq(subscriptions.sessionId, target.sessionId), eq(subscriptions.endpoint, target.endpoint),
     eq(subscriptions.p256dh, target.p256dh), eq(subscriptions.auth, target.auth),
     eq(subscriptions.daysBefore, target.daysBefore));
+}
+
+async function submitPush(db: Database, target: Target, send: () => Promise<unknown>) {
+  try {
+    await send();
+    return 'sent';
+  } catch (error) {
+    const status = error && typeof error === 'object' && 'statusCode' in error ? error.statusCode : null;
+    if (status === 404 || status === 410) {
+      await db.delete(subscriptions).where(sameSubscription(target));
+      return 'expired';
+    }
+    return 'failed';
+  }
 }
 
 async function deliver(db: Database, target: Target, payload: ReminderPayload, ttl: number, send: SendReminder) {
@@ -41,20 +57,10 @@ async function deliver(db: Database, target: Target, payload: ReminderPayload, t
   if (!claimed.length) return 'skipped';
 
   const claim = and(eq(deliveries.subscriptionId, target.id), eq(deliveries.dueDate, dueDate), eq(deliveries.leaseUntil, leaseUntil));
-  try {
-    await send(target, payload, ttl);
-  } catch (error) {
-    const status = error && typeof error === 'object' && 'statusCode' in error ? error.statusCode : null;
-    if (status === 404 || status === 410) {
-      await db.delete(subscriptions).where(sameSubscription(target));
-      await db.delete(deliveries).where(claim);
-      return 'expired';
-    }
-    await db.delete(deliveries).where(claim);
-    return 'failed';
-  }
-  await db.update(deliveries).set({ sentAt: Date.now() }).where(claim);
-  return 'sent';
+  const status = await submitPush(db, target, () => send(target, payload, ttl));
+  if (status === 'sent') await db.update(deliveries).set({ sentAt: Date.now() }).where(claim);
+  else await db.delete(deliveries).where(claim);
+  return status;
 }
 
 export async function sendScheduledReminders(db: Database, now: Date, send: SendReminder) {
@@ -91,11 +97,28 @@ export async function sendScheduledReminders(db: Database, now: Date, send: Send
   return result;
 }
 
-function pushSender(vapidDetails: NonNullable<ReturnType<typeof getPushConfig>>): SendReminder {
-  return (target, payload, ttl) => webPush.sendNotification({
+function pushSender(vapidDetails: PushConfig) {
+  return (target: Target, payload: ReminderPayload | TestPushPayload, ttl: number) => webPush.sendNotification({
     endpoint: target.endpoint,
     keys: { p256dh: target.p256dh, auth: target.auth },
-  }, JSON.stringify(payload), { vapidDetails, TTL: ttl, timeout: 10_000, topic: `recurring-${payload.dueDate}` });
+  }, JSON.stringify(payload), {
+    vapidDetails, TTL: ttl, timeout: 10_000,
+    ...('dueDate' in payload ? { topic: `recurring-${payload.dueDate}` } : { topic: 'track-it-test', urgency: 'high' }),
+  });
+}
+
+export async function sendTestPushNotifications(db: Database, config: PushConfig) {
+  const targets = await db.select().from(subscriptions);
+  const send = pushSender(config);
+  const payload: TestPushPayload = { kind: 'test', title: 'Prueba de Track-It', body: 'Esta es una notificación de prueba.' };
+  const result = { sent: 0, expired: 0, failed: 0 };
+
+  for (let index = 0; index < targets.length; index += 10) {
+    const attempts = await Promise.all(targets.slice(index, index + 10).map((target) =>
+      submitPush(db, target, () => send(target, payload, 5 * 60))));
+    for (const status of attempts) result[status]++;
+  }
+  return result;
 }
 
 export function startReminderScheduler(db: Database) {

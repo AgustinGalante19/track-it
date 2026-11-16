@@ -49,3 +49,30 @@ it('focuses an existing matching recurring page', async () => {
   expect(focus).toHaveBeenCalledTimes(1);
   expect(worker.openWindow).not.toHaveBeenCalled();
 });
+
+it('shows test pushes without a due date and gives them a separate tag', async () => {
+  const worker = setupWorker();
+  const notice = { kind: 'test', title: 'Aviso de prueba', body: 'Ya podés recibir avisos de Track-It.' };
+  const waitUntil = vi.fn<(completion: Promise<unknown>) => void>();
+  worker.push({ data: { json: () => notice }, waitUntil });
+  await waitUntil.mock.calls[0][0];
+  expect(worker.showNotification).toHaveBeenCalledExactlyOnceWith(notice.title, expect.objectContaining({ body: notice.body, tag: 'track-it-test', renotify: true }));
+});
+
+it.each([false, true])('opens the app root from a test notice or focuses it when open (%s)', async (alreadyOpen) => {
+  const worker = setupWorker();
+  const root = 'https://track-it.example/';
+  const focus = vi.fn();
+  if (alreadyOpen) worker.matchAll.mockResolvedValue([{ url: root, focus }]);
+  const notification = { tag: 'track-it-test', close: vi.fn() };
+  const waitUntil = vi.fn<(completion: Promise<unknown>) => void>();
+  worker.click({ notification, waitUntil });
+  await waitUntil.mock.calls[0][0];
+  expect(notification.close).toHaveBeenCalledTimes(1);
+  if (alreadyOpen) {
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(worker.openWindow).not.toHaveBeenCalled();
+  } else {
+    expect(worker.openWindow).toHaveBeenCalledExactlyOnceWith(root);
+  }
+});
