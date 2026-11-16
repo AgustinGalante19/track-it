@@ -68,6 +68,43 @@ it('retries a failed submission and removes push registrations that have expired
   expect(await sendScheduledReminders(db, atNine, send)).toMatchObject({ sent: 0 });
 });
 
+it('sends both notice types for the same date and deduplicates each independently', async () => {
+  await subscribe('first');
+  await db.update(schema.recurring).set({ dueDay: 27 }).where(eq(schema.recurring.id, 'rule'));
+  await db.insert(schema.financeAccounts).values({
+    id: 'visa', userId: 'user', name: 'Visa', type: 'credit', currency: 'ARS', emoji: 'V', closingDay: 27,
+  });
+  const send = vi.fn(async () => {});
+  const reminderDay = new Date('2026-11-26T12:00:00Z');
+
+  expect(await sendScheduledReminders(db, reminderDay, send)).toMatchObject({ sent: 2 });
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), {
+    kind: 'card-closing', title: 'Cierre de tarjeta de crédito',
+    body: 'Recordá que el 27/11 cierra la tarjeta Visa.', dueDate: '2026-11-27',
+  }, 54_000);
+  expect(await db.select({ kind: schema.pushReminderDeliveries.kind }).from(schema.pushReminderDeliveries))
+    .toEqual(expect.arrayContaining([{ kind: 'recurring' }, { kind: 'card-closing' }]));
+  expect(await sendScheduledReminders(db, reminderDay, send)).toMatchObject({ sent: 0 });
+  expect(send).toHaveBeenCalledTimes(2);
+});
+
+it('groups active card closings at month-end and uses each device’s lead time', async () => {
+  await subscribe('one-day');
+  await subscribe('two-days', 2);
+  const card = { userId: 'user', type: 'credit', currency: 'ARS', emoji: 'C' } as const;
+  await db.insert(schema.financeAccounts).values([
+    { ...card, id: 'visa', name: 'Visa', closingDay: 31 },
+    { ...card, id: 'amex', name: 'Amex', closingDay: 29 },
+    { ...card, id: 'archived', name: 'Archivada', closingDay: 31, archived: true },
+    { ...card, id: 'no-date', name: 'Sin fecha' },
+  ]);
+  const send = vi.fn(async () => {});
+
+  expect(await sendScheduledReminders(db, new Date('2027-02-26T12:00:00Z'), send)).toMatchObject({ sent: 1 });
+  expect(send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'two-days' }),
+    expect.objectContaining({ dueDate: '2027-02-28', body: 'Recordá que el 28/02 cierra la tarjeta Amex (y 1 más ese día).' }), 54_000);
+});
+
 it('requires the cron bearer secret before accessing the database or dispatching', async () => {
   const keys = webPush.generateVAPIDKeys();
   vi.stubEnv('VAPID_SUBJECT', 'mailto:push@example.com');

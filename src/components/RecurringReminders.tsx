@@ -75,10 +75,10 @@ function AndroidReminders() {
 
   const blocked = permission === 'denied';
   const preferences = settings?.preferences;
-  return <section className="settings-card" aria-labelledby="recurring-reminders-title">
+  return <section className="settings-card" aria-labelledby="android-reminders-title">
     <div>
-      <h2 id="recurring-reminders-title">Avisos de recurrentes</h2>
-      <p className="muted small">Recibí un aviso por fecha de débito en este Android, a partir de las 09:00 (hora argentina).</p>
+      <h2 id="android-reminders-title">Avisos en Android</h2>
+      <p className="muted small">Recibí avisos de débitos recurrentes y cierres de tarjetas en este dispositivo, a partir de las 09:00 (hora argentina).</p>
     </div>
     {!supported && <p className="muted small">Abrí Track-It desde una conexión HTTPS en un navegador Android compatible.</p>}
     {supported && !loadError && settings === undefined && <p className="muted small" role="status">Consultando notificaciones…</p>}

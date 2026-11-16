@@ -2,7 +2,7 @@ import { categoryIconSchema, recurringIconSchema } from './icons';
 import { z } from 'zod';
 import type { Snapshot } from './domain';
 import type { AuthUser } from './auth';
-import { currencySchema, accountTypeSchema, dateSchema, monthSchema } from './domain';
+import { currencySchema, accountTypeSchema, accountClosingDaySchema, dateSchema, monthSchema } from './domain';
 
 export type CollectionDelta<T> = { upserts: T[]; removes: string[] };
 export type FinanceChanges = {
@@ -21,7 +21,7 @@ const owned = { id, userId: id };
 const named = { name: z.string(), emoji: z.string(), category: z.string(), accountId: id };
 export const financeRecordSchemas = {
   accounts: z.object({ ...owned, name: z.string(), type: accountTypeSchema, currency: currencySchema,
-    emoji: z.string(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(), archived: z.boolean(), version }),
+    emoji: z.string(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(), closingDay: accountClosingDaySchema, archived: z.boolean(), version }),
   movements: z.object({ ...owned, kind: z.enum(['expense', 'income', 'transfer', 'adjustment']),
     concept: z.string(), date: dateSchema, amount: integer, currency: currencySchema, accountId: id,
     destinationId: id.nullable(), receivedAmount: integer.nullable(), destinationCurrency: currencySchema.nullable(),

@@ -101,7 +101,9 @@ export async function restoreBackup(db: Database, userId: string, raw: unknown) 
     await tx.delete(s.plans).where(eq(s.plans.userId, userId)); await tx.delete(s.categories).where(eq(s.categories.userId, userId)); await tx.delete(s.financeAccounts).where(eq(s.financeAccounts.userId, userId));
     // Inserciones en lotes pequeños para respetar el límite de variables de SQLite.
     const batches = async <T,>(rows: T[], insert: (rows: T[]) => Promise<unknown>) => { for (let n = 0; n < rows.length; n += 20) await insert(rows.slice(n, n + 20)); };
-    await batches(b.accounts.map((a) => ({ ...a, id: id(a.id), userId })), async (rows) => tx.insert(s.financeAccounts).values(rows));
+    await batches(b.accounts.map((a) => ({
+      ...a, id: id(a.id), userId, closingDay: a.type === 'credit' ? a.closingDay ?? null : null,
+    })), async (rows) => tx.insert(s.financeAccounts).values(rows));
     await batches(b.recurring.map((r) => ({ ...r, id: id(r.id), accountId: id(r.accountId), userId })), async (rows) => tx.insert(s.recurring).values(rows));
     await batches(b.plans.map((p) => ({ ...p, id: id(p.id), accountId: id(p.accountId), userId })), async (rows) => tx.insert(s.plans).values(rows));
     await batches(b.movements.map((m) => ({ ...m, id: id(m.id), accountId: id(m.accountId), destinationId: m.destinationId ? id(m.destinationId) : null, sourceId: m.sourceId ? id(m.sourceId) : null, userId })), async (rows) => tx.insert(s.movements).values(rows));

@@ -10,9 +10,9 @@ import { Dialog } from './components/ui/dialog';
 import { Button } from './components/ui/button';
 import { accountColor } from './lib/account-appearance';
 import './account-color.css';
-import { accountInputSchema, expenseInputSchema, recurringInputSchema, planInputSchema, incomeInputSchema, chargeInputSchema, formatMoney, moneyInput, parseMoney, splitInstallments, today } from '../shared/domain';
+import { accountClosingDaySchema, accountInputSchema, expenseInputSchema, recurringInputSchema, planInputSchema, incomeInputSchema, chargeInputSchema, formatMoney, moneyInput, parseMoney, splitInstallments, today } from '../shared/domain';
 
-type Values = { concept: string; amount: string; date: string; accountId: string; category: string; emoji: string; notes: string; payment: string; count: string; historicalCount: string; firstDate: string; kind: 'subscription' | 'service'; dueDay: string; startDate: string; name: string; type: 'bank' | 'wallet' | 'cash' | 'credit'; currency: 'ARS' | 'USD' };
+type Values = { concept: string; amount: string; date: string; accountId: string; category: string; emoji: string; notes: string; payment: string; count: string; historicalCount: string; firstDate: string; kind: 'subscription' | 'service'; dueDay: string; startDate: string; name: string; type: 'bank' | 'wallet' | 'cash' | 'credit'; currency: 'ARS' | 'USD'; closingDay: string };
 const titles = { expense: 'Agregar gasto', plan: 'Nueva compra en cuotas', recurring: 'Agregar recurrente', income: 'Registrar ingreso', account: 'Agregar cuenta', charge: 'Confirmar cargo o pago' };
 const FormErrors = createContext<FieldErrors<Values>>({});
 function Field({ name, label, children, hint, className = '' }: { name: keyof Values; label: string; children: React.ReactNode; hint?: string; className?: string }) {
@@ -45,7 +45,7 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
     date: movement?.date || today(), category: initialCategory, emoji: movement?.emoji || rule?.emoji || account?.emoji || categoryEmoji(initialCategory),
     notes: movement?.notes || '', payment: composer.type === 'plan' ? 'installments' : 'single', count: '6', historicalCount: '0', firstDate: today(),
     kind: rule?.kind || preset?.kind || 'subscription', dueDay: String(rule?.dueDay || Number(today().slice(8))), startDate: rule?.startDate || `${month}-01`,
-    name: account?.name || '', type: account?.type || 'bank', currency: account?.currency || currency,
+    name: account?.name || '', type: account?.type || 'bank', currency: account?.currency || currency, closingDay: String(account?.closingDay ?? ''),
   } });
   const values = watch(); const source = accounts.find((a) => a.id === values.accountId);
   const amountCurrency = source?.currency || currency;
@@ -62,8 +62,12 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
     try {
       const id = operationId.current;
       if (composer.type === 'account') {
-        if (account) await save(`/accounts/${account.id}`, { name: value.name, emoji: value.emoji, color: customColor, archived: account.archived, version: account.version }, 'PATCH');
-        else await save('/accounts', accountInputSchema.parse({ id, name: value.name, type: value.type, currency: value.currency, emoji: value.emoji, color: customColor }));
+        const details = {
+          name: value.name, emoji: value.emoji, color: customColor,
+          ...(value.type === 'credit' ? { closingDay: value.closingDay === '' ? null : Number(value.closingDay) } : {}),
+        };
+        if (account) await save(`/accounts/${account.id}`, { ...details, archived: account.archived, version: account.version }, 'PATCH');
+        else await save('/accounts', accountInputSchema.parse({ ...details, id, type: value.type, currency: value.currency }));
       } else if (composer.type === 'charge') {
         const payload = chargeInputSchema.parse({ id, date: value.date, ...(occurrence ? { amount: cents(value.amount, 'amount') } : {}) });
         await save(occurrence ? `/occurrences/${encodeURIComponent(occurrence.id)}/charge` : `/installments/${installment!.id}/charge`, payload);
@@ -102,7 +106,15 @@ export function ComposerDialog({ composer, onClose }: { composer: Composer; onCl
         </div>
         <p className="field-hint">{customColor ? 'Este color se conserva aunque cambies el nombre.' : 'El color se adapta al nombre de la entidad o al tipo de cuenta.'}</p>
       </fieldset>
-      {!account && <><Field name="type" label="Tipo"><select {...register('type')}><option value="bank">Banco</option><option value="wallet">Billetera virtual</option><option value="cash">Efectivo</option><option value="credit">Tarjeta de crédito</option></select></Field><Field name="currency" label="Moneda"><select {...register('currency')}><option value="ARS">Pesos argentinos · ARS</option><option value="USD">Dólares · USD</option></select></Field><p className="form-note span-2"><Info size={16} />Una cuenta tiene una moneda. Podés agregar otra del mismo banco para tus dólares.</p></>}
+      {!account && <>
+        <Field name="type" label="Tipo"><select {...register('type')}><option value="bank">Banco</option><option value="wallet">Billetera virtual</option><option value="cash">Efectivo</option><option value="credit">Tarjeta de crédito</option></select></Field>
+        <Field name="currency" label="Moneda"><select {...register('currency')}><option value="ARS">Pesos argentinos · ARS</option><option value="USD">Dólares · USD</option></select></Field>
+      </>}
+      {values.type === 'credit' && <Field name="closingDay" label="Fecha de cierre" className="span-2" hint="Día del mes. Dejalo vacío si no querés programar el aviso.">
+        <input {...register('closingDay', { validate: (day) => accountClosingDaySchema.safeParse(day === '' ? null : Number(day)).success || 'Ingresá un día del 1 al 31.' })}
+          type="number" inputMode="numeric" min={1} max={31} step={1} placeholder="Ej. 27" />
+      </Field>}
+      {!account && <p className="form-note span-2"><Info size={16} />Una cuenta tiene una moneda. Podés agregar otra del mismo banco para tus dólares.</p>}
     </> : composer.type === 'charge' ? <>
       <Field name="amount" label={`${occurrence ? 'Importe real' : 'Importe de la cuota'} en ${amountCurrency}`} className="span-2"><input {...register('amount')} inputMode="decimal" disabled={!!installment} autoFocus /></Field><Field name="date" label="Fecha efectiva del cargo o débito" className="span-2"><input {...register('date')} type="date" required max={today()} /></Field><p className="form-note span-2">{`Se registra el gasto en ${source?.name || 'la cuenta seleccionada'}. Los consumos con tarjeta se registran al confirmar el cargo; no hace falta registrar el pago del resumen.`}</p>
     </> : <>

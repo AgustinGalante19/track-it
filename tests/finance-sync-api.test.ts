@@ -139,6 +139,23 @@ describe('transactional synchronization matrix', () => {
     expect(legacy.status).toBe(201);
     expect(await legacy.json()).not.toHaveProperty('changes');
   });
+  it('synchronizes credit account closing days and preserves them for legacy edits', async () => {
+    const id = randomUUID();
+    const card = { id, name: 'Tarjeta', type: 'credit', currency: 'ARS', emoji: 'T', closingDay: 27 };
+    const created = await sync('/accounts', 'POST', card, 201);
+    expect(created.changes.collections.accounts?.upserts).toMatchObject([{ id, closingDay: 27 }]);
+
+    const edit = { name: 'Nueva tarjeta', emoji: 'T', archived: false, version: 1 };
+    expect((await request(`/accounts/${id}`, 'PATCH', { ...edit, closingDay: 32 })).status).toBe(400);
+    expect((await request('/accounts', 'POST', { ...card, id: randomUUID(), closingDay: 0 })).status).toBe(400);
+    const legacy = await sync(`/accounts/${id}`, 'PATCH', edit);
+    expect(legacy.changes.collections.accounts?.upserts).toMatchObject([{ id, closingDay: 27 }]);
+    const cleared = await sync(`/accounts/${id}`, 'PATCH', { ...edit, version: 2, closingDay: null });
+    expect(cleared.changes.collections.accounts?.upserts).toMatchObject([{ id, closingDay: null }]);
+
+    const bank = await sync('/accounts', 'POST', { ...card, id: randomUUID(), type: 'bank' }, 201);
+    expect(bank.changes.collections.accounts?.upserts).toMatchObject([{ type: 'bank', closingDay: null }]);
+  });
   it('rejects invalid sync metadata before writing and retains unwrapped ownership errors', async () => {
     const before = await snapshot();
     for (const invalid of ['bad', '1999-12', '2101-01']) {

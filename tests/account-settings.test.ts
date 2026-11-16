@@ -208,6 +208,30 @@ it('guía a Cuentas y permite crear una cuenta sin ingresar saldos', async () =>
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 
+it('configura el día de cierre al crear una tarjeta y permite quitarlo al editarla', async () => {
+  await show('/cuentas', []);
+  fireEvent.click(screen.getByRole('button', { name: 'Agregar cuenta' }));
+  const creation = within(await screen.findByRole('dialog', { name: 'Agregar cuenta' }));
+  expect(creation.queryByLabelText(/^Fecha de cierre/)).toBeNull();
+  fireEvent.change(creation.getByLabelText('Nombre de la cuenta'), { target: { value: 'Visa' } });
+  fireEvent.change(creation.getByLabelText('Tipo'), { target: { value: 'credit' } });
+  fireEvent.change(creation.getByLabelText(/^Fecha de cierre/), { target: { value: '27' } });
+  fireEvent.click(creation.getByRole('button', { name: 'Guardar' }));
+
+  const card = within(await screen.findByRole('article', { name: 'Visa' }));
+  expect(card.getByText('Tarjeta de crédito · Cierra el día 27')).toBeTruthy();
+  expect(send).toHaveBeenCalledWith('/accounts', expect.objectContaining({ type: 'credit', closingDay: 27 }), 'POST');
+  fireEvent.click(card.getByRole('button', { name: 'Editar Visa' }));
+  const edit = within(await screen.findByRole('dialog', { name: 'Editar cuenta' }));
+  const closingDay = edit.getByLabelText(/^Fecha de cierre/);
+  expect(closingDay).toHaveProperty('value', '27');
+  fireEvent.change(closingDay, { target: { value: '' } });
+  fireEvent.click(edit.getByRole('button', { name: 'Guardar' }));
+
+  await waitFor(() => expect(card.getByText('Tarjeta de crédito')).toBeTruthy());
+  expect(send).toHaveBeenLastCalledWith(expect.stringMatching(/^\/accounts\//), expect.objectContaining({ closingDay: null }), 'PATCH');
+});
+
 it('abre el historial sin saldos y vuelve a Cuentas conservando el mes', async () => {
   const router = await show(`/cuentas/${bank.id}`);
   await screen.findByRole('heading', { name: 'Historial de la cuenta' });

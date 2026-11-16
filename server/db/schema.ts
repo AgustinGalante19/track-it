@@ -27,7 +27,8 @@ export const pushReminderDeliveries = sqliteTable('push_reminder_delivery', {
   dueDate: text('due_date').notNull(),
   leaseUntil: integer('lease_until').notNull(),
   sentAt: integer('sent_at'),
-}, (t) => [primaryKey({ columns: [t.subscriptionId, t.dueDate] })]);
+  kind: text('kind').$type<'recurring' | 'card-closing'>().notNull().default('recurring'),
+}, (t) => [primaryKey({ columns: [t.subscriptionId, t.dueDate, t.kind] })]);
 export const account = sqliteTable('account', {
   id: text('id').primaryKey(), accountId: text('account_id').notNull(), providerId: text('provider_id').notNull(),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
@@ -49,6 +50,7 @@ export const financeAccounts = sqliteTable('finance_account', {
   name: text('name').notNull(), type: text('type').$type<AccountType>().notNull(), currency: text('currency').$type<Currency>().notNull(),
   emoji: text('emoji').notNull(),
   color: text('color'),
+  closingDay: integer('closing_day'),
   archived: integer('archived', { mode: 'boolean' }).notNull().default(false), version: integer('version').notNull().default(1),
 }, (t) => [index('finance_user_idx').on(t.userId)]);
 export const movements = sqliteTable('movement', {

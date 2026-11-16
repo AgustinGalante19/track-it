@@ -97,6 +97,16 @@ describe('Cuentas y movimientos informativos', () => {
     await restoreBackup(db, owner, { ...backup, accounts: backup.accounts.map(({ color, ...rest }) => rest) });
     expect((await snapshot()).accounts[0].color).toBeNull();
   });
+  it('conserva la fecha de cierre en respaldos y acepta respaldos anteriores sin fecha de cierre', async () => {
+    const id = randomUUID();
+    await service.createAccount(db, owner, { id, name: 'Tarjeta', type: 'credit', currency: 'ARS', emoji: 'T', closingDay: 27 });
+    const backup = await exportBackup(db, owner);
+    expect(backup.accounts[0].closingDay).toBe(27);
+    await restoreBackup(db, owner, backup);
+    expect((await snapshot()).accounts[0].closingDay).toBe(27);
+    await restoreBackup(db, owner, { ...backup, accounts: backup.accounts.map(({ closingDay, ...legacy }) => legacy) });
+    expect((await snapshot()).accounts[0].closingDay).toBeNull();
+  });
   it('elimina solo cuentas propias y con la versión vigente', async () => {
     const bank = await account();
     await expect(service.deleteAccount(db, other, bank.id, bank.version)).rejects.toMatchObject({ status: 404 });

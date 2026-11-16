@@ -114,7 +114,7 @@ export async function clearLocalPushOnSignOut() {
     registration.pushManager.getSubscription().then((subscription) => subscription?.unsubscribe()),
     registration.getNotifications().then((notifications) => {
       for (const notification of notifications) {
-        if (notification.tag.startsWith('recurring-')) notification.close();
+        if (notification.tag.startsWith('recurring-') || notification.tag.startsWith('card-closing-')) notification.close();
       }
     }),
   ]);

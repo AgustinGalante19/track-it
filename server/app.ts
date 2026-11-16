@@ -18,6 +18,7 @@ import { getPushConfig, getTestPushConfig, pushEndpointInput, pushSubscriptionIn
 import {
   accountInputSchema,
   accountColorSchema,
+  accountClosingDaySchema,
   expenseInputSchema,
   incomeInputSchema,
   recurringInputSchema,
@@ -193,6 +194,7 @@ app.patch("/api/accounts/:id", async (c) =>
           name: z.string().trim().min(1).max(80),
           emoji: z.string().min(1).max(16),
           color: accountColorSchema,
+          closingDay: accountClosingDaySchema,
           archived: z.boolean(),
           version: z.number().int().min(1),
         }),

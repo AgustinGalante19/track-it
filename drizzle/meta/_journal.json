@@ -64,6 +64,13 @@
       "when": 1794827587497,
       "tag": "0008_push-reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794832443693,
+      "tag": "0009_card-closing",
+      "breakpoints": true
     }
   ]
 }

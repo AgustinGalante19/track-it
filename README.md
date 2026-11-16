@@ -96,11 +96,13 @@ pnpm preview
 
 La vista previa sirve el build y la API local en el mismo puerto 5173. En esta PC también podés usar `scripts/start-local.ps1 -Preview` después de compilar.
 
-### Avisos de recurrentes en Android
+### Avisos en Android
 
-En Android, abrí Track It por **HTTPS** y entrá a **Configuración → Avisos de recurrentes**. Elegí entre 1 y 30 días de anticipación, activá los avisos y aceptá el permiso del navegador. La configuración es por dispositivo y el valor inicial es 1 día. Al cerrar sesión se desactivan los avisos de ese navegador.
+En Android, abrí Track It por **HTTPS** y entrá a **Configuración → Avisos en Android**. Elegí entre 1 y 30 días de anticipación, activá los avisos y aceptá el permiso del navegador. La misma anticipación se aplica a débitos recurrentes y cierres de tarjeta. La configuración es por dispositivo y el valor inicial es 1 día. Al cerrar sesión se desactivan los avisos de ese navegador.
 
 El envío se programa desde las **9:00 de Argentina**. Si hay varios recurrentes pendientes para el mismo día, el aviso muestra el primero y cuántos más vencen. Al tocarlo se abre el mes correspondiente en Recurrentes. La recepción depende de la conexión y de los permisos de Android.
+
+En **Cuentas**, al crear o editar una tarjeta de crédito, podés indicar su **Fecha de cierre** como día del mes. Si el mes tiene menos días, se usa el último. Varios cierres del mismo día se agrupan en un aviso que abre Cuentas al tocarlo.
 
 1. Generá un par de claves una sola vez con `pnpm exec web-push generate-vapid-keys --json`. Guardá los valores en `VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY` del servidor. Definí `VAPID_SUBJECT` con un contacto `mailto:` o una URL HTTPS.
 2. Con Node/Docker, el servidor aplica la migración al arrancar y comprueba los avisos cada cinco minutos. Para probar desde el teléfono, usá la versión compilada de la PWA servida por HTTPS, por ejemplo con `pnpm preview` y ngrok.

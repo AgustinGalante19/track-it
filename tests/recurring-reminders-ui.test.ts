@@ -124,7 +124,7 @@ it('handles missing server configuration without asking for notification permiss
 it('does not show the Android preferences on other devices', () => {
   const device = mockAndroid('Mozilla/5.0 (Windows NT 10.0) Chrome/120.0.0.0');
   render(createElement(RecurringReminders));
-  expect(screen.queryByRole('heading', { name: 'Avisos de recurrentes' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Avisos en Android' })).toBeNull();
   expect(device.fetch).not.toHaveBeenCalled();
 });
 
@@ -132,10 +132,12 @@ it('clears the device subscription and open reminders after sign-out', async () 
   const device = mockAndroid();
   const old = device.previousSubscription();
   const reminder = { tag: 'recurring-2026-11-18', close: vi.fn() };
+  const cardClosing = { tag: 'card-closing-2026-11-18', close: vi.fn() };
   const other = { tag: 'other', close: vi.fn() };
-  device.getNotifications.mockResolvedValue([reminder, other]);
+  device.getNotifications.mockResolvedValue([reminder, cardClosing, other]);
   await clearLocalPushOnSignOut();
   expect(old.unsubscribe).toHaveBeenCalledTimes(1);
   expect(reminder.close).toHaveBeenCalledTimes(1);
+  expect(cardClosing.close).toHaveBeenCalledTimes(1);
   expect(other.close).not.toHaveBeenCalled();
 });

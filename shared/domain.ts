@@ -22,11 +22,13 @@ export const categoryInputSchema = z.object({
 export type CategoryInput = z.infer<typeof categoryInputSchema>;
 export type Category = CategoryInput & { id: string; version: number };
 export const accountColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Elegí un color válido.').nullable().optional();
+export const accountClosingDaySchema = z.number().int().min(1).max(31).nullable().optional();
 export const idSchema = z.string().uuid();
 export const accountInputSchema = z.object({
   id: idSchema, name: titleSchema, type: accountTypeSchema, currency: currencySchema,
   emoji: emojiSchema,
   color: accountColorSchema,
+  closingDay: accountClosingDaySchema,
 });
 export const expenseInputSchema = z.object({
   id: idSchema, concept: z.string().trim().max(80).default(''), accountId: idSchema, amount: moneySchema, date: dateSchema,

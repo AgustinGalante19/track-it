@@ -107,7 +107,7 @@ describe('envío global de notificaciones de prueba', () => {
     }
     const before = await db.select().from(pushSubscriptions);
     const successful = before.find(({ endpoint }) => endpoint === successfulEndpoint)!;
-    const delivery = { subscriptionId: successful.id, dueDate: '2026-11-18', leaseUntil: 1, sentAt: 1 };
+    const delivery = { subscriptionId: successful.id, dueDate: '2026-11-18', leaseUntil: 1, sentAt: 1, kind: 'recurring' as const };
     await db.insert(pushReminderDeliveries).values(delivery);
 
     const send = vi.spyOn(webPush, 'sendNotification').mockImplementation(async ({ endpoint }) => {
@@ -125,7 +125,7 @@ describe('envío global de notificaciones de prueba', () => {
       expect(target.keys).toEqual(keys);
       expect(JSON.parse(String(message))).toEqual(payload);
     }
-    expect(await db.select().from(pushReminderDeliveries)).toEqual([delivery]);
+    expect(await db.select().from(pushReminderDeliveries)).toEqual([{ ...delivery, kind: 'recurring' }]);
     expect((await db.select({ endpoint: pushSubscriptions.endpoint }).from(pushSubscriptions)).map(({ endpoint }) => endpoint).sort())
       .toEqual([successfulEndpoint, failedEndpoint].sort());
   });

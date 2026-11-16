@@ -51,13 +51,15 @@ export async function createAccount(db: Database, userId: string, input: Account
 export async function createAccountInTransaction(tx: Executor, userId: string, input: AccountInput) {
   const [existing] = await tx.select().from(s.financeAccounts).where(eq(s.financeAccounts.id, input.id));
   if (existing) { if (existing.userId !== userId) throw new DomainError('Identificador no disponible.', 409); return existing; }
-  const [account] = await tx.insert(s.financeAccounts).values({ ...input, userId }).returning();
+  const closingDay = input.type === 'credit' ? input.closingDay ?? null : null;
+  const [account] = await tx.insert(s.financeAccounts).values({ ...input, closingDay, userId }).returning();
   return account;
 }
-export async function editAccount(db: Database, userId: string, id: string, input: { name: string; emoji: string; color?: string | null; archived: boolean; version: number }) {
+type AccountEdit = Pick<AccountInput, 'name' | 'emoji' | 'color' | 'closingDay'> & { archived: boolean; version: number };
+export async function editAccount(db: Database, userId: string, id: string, input: AccountEdit) {
   return timedTransaction(db, (tx) => editAccountInTransaction(tx, userId, id, input));
 }
-export async function editAccountInTransaction(tx: Executor, userId: string, id: string, input: { name: string; emoji: string; color?: string | null; archived: boolean; version: number }) {
+export async function editAccountInTransaction(tx: Executor, userId: string, id: string, input: AccountEdit) {
   const account = await ownedAccount(tx, userId, id, true);
   if (account.version !== input.version) throw new DomainError('La cuenta cambió en otro dispositivo. Actualizá antes de editar.', 409);
   if (input.archived) {
@@ -66,7 +68,8 @@ export async function editAccountInTransaction(tx: Executor, userId: string, id:
     const pendingRules = await tx.select({ id: s.occurrences.id }).from(s.occurrences).where(and(eq(s.occurrences.accountId, id), eq(s.occurrences.status, 'pending'))).limit(1);
     if (pending.length || activeRules.length || pendingRules.length) throw new DomainError('Resolvé las cuotas y recurrentes pendientes antes de archivar esta cuenta.');
   }
-  return (await tx.update(s.financeAccounts).set({ ...input, version: account.version + 1 }).where(eq(s.financeAccounts.id, id)).returning())[0];
+  const closingDay = account.type === 'credit' ? input.closingDay : null;
+  return (await tx.update(s.financeAccounts).set({ ...input, closingDay, version: account.version + 1 }).where(eq(s.financeAccounts.id, id)).returning())[0];
 }
 export async function deleteAccount(db: Database, userId: string, id: string, version: number) {
   return timedTransaction(db, (tx) => deleteAccountInTransaction(tx, userId, id, version));

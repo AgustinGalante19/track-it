@@ -48,7 +48,7 @@ export function AccountsPage() {
         <div className="account-card-body">
           <div className="account-card-top"><AccountIcon account={account} /><span className="account-currency">{account.currency}</span></div>
           <Link className="account-card-title" to={`/cuentas/${account.id}?mes=${month}`}><h2>{account.name}</h2></Link>
-          <p className="muted small">{accountTypes[account.type]}{account.archived && ' · Archivada'}</p>
+          <p className="muted small">{accountTypes[account.type]}{account.type === 'credit' && account.closingDay != null && ` · Cierra el día ${account.closingDay}`}{account.archived && ' · Archivada'}</p>
         </div>
         <div className="account-card-footer">
           <Link className="account-history-link" to={`/cuentas/${account.id}?mes=${month}`} aria-label={`Ver historial de ${account.name}`}>Ver historial <ArrowRight size={15} aria-hidden="true" /></Link>

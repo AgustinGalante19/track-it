@@ -50,6 +50,27 @@ it('focuses an existing matching recurring page', async () => {
   expect(worker.openWindow).not.toHaveBeenCalled();
 });
 
+it('displays a card closing reminder separately from debit reminders for the same date', async () => {
+  const worker = setupWorker();
+  const notice = { kind: 'card-closing', title: 'Cierre de tarjeta', body: 'Recordá que el 27/11 cierra la tarjeta Visa.', dueDate: '2026-11-27' };
+  const waitUntil = vi.fn<(completion: Promise<unknown>) => void>();
+  worker.push({ data: { json: () => notice }, waitUntil });
+  await waitUntil.mock.calls[0][0];
+  expect(worker.showNotification).toHaveBeenCalledExactlyOnceWith(notice.title, expect.objectContaining({
+    body: notice.body, tag: 'card-closing-2026-11-27', data: { dueDate: notice.dueDate },
+  }));
+});
+
+it('opens accounts for the closing month from a card reminder', async () => {
+  const worker = setupWorker();
+  const notification = { data: { dueDate: '2026-11-27' }, tag: 'card-closing-2026-11-27', close: vi.fn() };
+  const waitUntil = vi.fn<(completion: Promise<unknown>) => void>();
+  worker.click({ notification, waitUntil });
+  await waitUntil.mock.calls[0][0];
+  expect(notification.close).toHaveBeenCalledTimes(1);
+  expect(worker.openWindow).toHaveBeenCalledExactlyOnceWith('https://track-it.example/cuentas?mes=2026-11');
+});
+
 it('shows test pushes without a due date and gives them a separate tag', async () => {
   const worker = setupWorker();
   const notice = { kind: 'test', title: 'Aviso de prueba', body: 'Ya podés recibir avisos de Track-It.' };

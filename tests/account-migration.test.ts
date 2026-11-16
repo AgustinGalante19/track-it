@@ -33,3 +33,29 @@ it('quita los saldos de una base existente conservando cuentas, movimientos y re
     expect((await client.execute('PRAGMA foreign_key_check')).rows).toHaveLength(0);
   } finally { client.close(); }
 });
+
+it('agrega el cierre mensual a una base existente y conserva las entregas de recurrentes', async () => {
+  const client = createClient({ url: ':memory:' });
+  try {
+    const journal = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8'));
+    const cardMigration = journal.entries.findIndex((entry: { tag: string }) => entry.tag === '0009_card-closing');
+    for (const entry of journal.entries.slice(0, cardMigration)) await client.executeMultiple(readFileSync(`drizzle/${entry.tag}.sql`, 'utf8'));
+    await client.execute('PRAGMA foreign_keys = ON');
+    const db = drizzle(client, { schema });
+    await db.insert(schema.user).values({ id: 'owner', name: 'Persona', email: 'owner@example.com', createdAt: new Date(), updatedAt: new Date() });
+    await client.execute("INSERT INTO finance_account (id, user_id, name, type, currency, emoji) VALUES ('card', 'owner', 'Tarjeta', 'credit', 'ARS', 'T')");
+    await db.insert(schema.pushSubscriptions).values({ id: 'push', userId: 'owner', sessionId: 'session', endpoint: 'test', p256dh: 'key', auth: 'secret', daysBefore: 1 });
+    await client.execute("INSERT INTO push_reminder_delivery (subscription_id, due_date, lease_until, sent_at) VALUES ('push', '2026-11-27', 10, 20)");
+
+    await client.executeMultiple(readFileSync('drizzle/0009_card-closing.sql', 'utf8'));
+    expect(await db.select().from(schema.financeAccounts)).toMatchObject([{ id: 'card', closingDay: null }]);
+    expect(await db.select().from(schema.pushReminderDeliveries)).toEqual([
+      { subscriptionId: 'push', dueDate: '2026-11-27', leaseUntil: 10, sentAt: 20, kind: 'recurring' },
+    ]);
+    await db.insert(schema.pushReminderDeliveries).values({ subscriptionId: 'push', dueDate: '2026-11-27', leaseUntil: 30, kind: 'card-closing' });
+    expect(await db.select().from(schema.pushReminderDeliveries)).toHaveLength(2);
+    await db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.id, 'push'));
+    expect(await db.select().from(schema.pushReminderDeliveries)).toEqual([]);
+    expect((await client.execute('PRAGMA foreign_key_check')).rows).toHaveLength(0);
+  } finally { client.close(); }
+});
