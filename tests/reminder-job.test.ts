@@ -115,3 +115,16 @@ it('requires the cron bearer secret before accessing the database or dispatching
   expect((await handleReminderCron(new Request(url), db)).status).toBe(401);
   expect((await handleReminderCron(new Request(url, { headers: { Authorization: 'Bearer a-wrong-test-secret' } }), db)).status).toBe(401);
 });
+
+it('records scheduled checks even before the sending window or when nothing is due', async () => {
+  const send = vi.fn(async () => {});
+  await sendScheduledReminders(db, beforeNine, send);
+  await sendScheduledReminders(db, atNine, send, undefined, 'cron');
+
+  expect(send).toHaveBeenCalledTimes(0);
+  const runs = await db.select().from(schema.notificationRuns).orderBy(schema.notificationRuns.startedAt);
+  expect(runs).toMatchObject([
+    { source: 'scheduler', status: 'skipped', reason: 'before-window', startedAt: beforeNine, finishedAt: expect.any(Date), sent: 0 },
+    { source: 'cron', status: 'completed', reason: 'no-due', startedAt: atNine, finishedAt: expect.any(Date), sent: 0 },
+  ]);
+});

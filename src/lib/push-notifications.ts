@@ -1,6 +1,6 @@
 import { api, ApiError, send } from './api';
 
-export type ReminderPreferences = { daysBefore: number };
+export type ReminderPreferences = { daysBefore: number; device?: string };
 
 export type PushSettings = {
   publicKey: string;
@@ -71,7 +71,7 @@ function registerSubscription(subscription: PushSubscription, daysBefore: number
   }, 'PUT');
 }
 
-export async function savePushSettings({ registration, publicKey }: PushSettings, daysBefore: number) {
+export async function savePushSettings({ registration, publicKey, preferences }: PushSettings, daysBefore: number) {
   const applicationServerKey = decodeApplicationKey(publicKey);
   const manager = registration.pushManager;
   const subscribe = async () => {
@@ -85,7 +85,8 @@ export async function savePushSettings({ registration, publicKey }: PushSettings
   };
 
   let subscription = Notification.permission === 'granted' ? await manager.getSubscription() : null;
-  if (subscription && !matchesApplicationKey(subscription, applicationServerKey)) {
+  if (subscription && (!preferences || !matchesApplicationKey(subscription, applicationServerKey))) {
+    // An endpoint missing from the server may have been rejected by the push provider.
     await subscription.unsubscribe();
     subscription = null;
   }

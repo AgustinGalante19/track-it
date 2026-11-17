@@ -14,7 +14,9 @@ import { createCategory, editCategory, deleteCategory } from "./sync-service"
 import { withFinanceSync } from "./finance-sync"
 import { demoEnabled, prepareDemo } from "./demo"
 import { exportBackup, restoreBackup } from "./backup"
-import { getPushConfig, getTestPushConfig, pushEndpointInput, pushSubscriptionInput, pushSubscriptionStatus, removePushSubscription, removeSessionPushSubscriptions, savePushSubscription } from "./push-subscriptions"
+import { getPushConfig, getTestPushConfig, isPushTestAdmin, pushEndpointInput, pushSubscriptionInput, pushSubscriptionStatus, removePushSubscription, removeSessionPushSubscriptions, savePushSubscription } from "./push-subscriptions"
+import { listNotificationHistory, notificationHistoryCursorSchema, recordNotificationReceipt } from "./notification-history"
+import { notificationReceiptInput, verifyReceiptToken } from "./notification-receipts"
 import {
   accountInputSchema,
   accountColorSchema,
@@ -83,6 +85,16 @@ app.on(["GET", "POST", "PATCH", "DELETE"], "/api/auth/*", (c) =>
   auth.handler(c.req.raw),
 )
 app.get("/api/cron/recurring-reminders", async (c) => (await import("./reminder-job")).handleReminderCron(c.req.raw, db))
+app.post("/api/notifications/receipt", bodyLimit({ maxSize: 1024 }), async (c) => {
+  const origin = c.req.header("Origin")
+  if (origin && !trustedOrigins.includes(origin)) return c.body(null, 403)
+  const { token, status } = await body(c.req, notificationReceiptInput)
+  const secret = getPushConfig()?.privateKey
+  const id = secret && verifyReceiptToken(token, secret)
+  if (!id) return c.body(null, 403)
+  await recordNotificationReceipt(db, id, status)
+  return c.body(null, 204)
+})
 app.use("/api/*", async (c, next) => {
   const session = await timed("auth", () => auth.api.getSession({ headers: c.req.raw.headers }))
   if (!session)
@@ -123,9 +135,15 @@ async function body<T extends z.ZodType>(
 app.get("/api/notifications/config", (c) =>
   c.json({ publicKey: getPushConfig()?.publicKey ?? null }),
 )
-app.get("/api/notifications/test", (c) =>
-  c.json({ enabled: !!getTestPushConfig(c.get("userId")) }),
-)
+app.get("/api/notifications/test", (c) => {
+  const historyEnabled = isPushTestAdmin(c.get("userId"))
+  return c.json({ enabled: historyEnabled && !!getPushConfig(), ...(historyEnabled ? { historyEnabled } : {}) })
+})
+app.get("/api/notifications/history", async (c) => {
+  if (!isPushTestAdmin(c.get("userId"))) return c.json({ error: "El historial de avisos no está habilitado para tu cuenta." }, 403)
+  const before = notificationHistoryCursorSchema.optional().parse(c.req.query("before"))
+  return c.json(await listNotificationHistory(db, before))
+})
 app.post("/api/notifications/test", async (c) => {
   const config = getTestPushConfig(c.get("userId"))
   if (!config) return c.json({ error: "El envío de avisos de prueba no está habilitado para tu cuenta." }, 403)

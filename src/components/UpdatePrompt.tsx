@@ -3,7 +3,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Button } from './ui/button';
 import { getUpdateBlocked, subscribeUpdateSafety } from '../lib/update-safety';
 import { getDialogCount, subscribeDialogs } from '../lib/interaction-state';
-import { createUpdateActivation, createUpdateChecker } from '../lib/pwa-update';
+import { createUpdateActivation, createUpdateChecker, pwaUpdateReadyEvent } from '../lib/pwa-update';
 export function UpdatePrompt() {
   const [registration, setRegistration] = useState<ServiceWorkerRegistration>();
   const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW({
@@ -15,6 +15,11 @@ export function UpdatePrompt() {
   const [deferred, setDeferred] = useState(false), [error, setError] = useState('');
   const update = useRef(updateServiceWorker); update.current = updateServiceWorker;
   const [activation] = useState(() => createUpdateActivation(() => update.current(true)));
+  useEffect(() => {
+    const showPrompt = () => setNeedRefresh(true);
+    window.addEventListener(pwaUpdateReadyEvent, showPrompt);
+    return () => window.removeEventListener(pwaUpdateReadyEvent, showPrompt);
+  }, [setNeedRefresh]);
   useEffect(() => {
     if (!registration) return;
     const check = createUpdateChecker(() => registration.update());

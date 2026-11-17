@@ -7,6 +7,8 @@ import { pushReminderDeliveries, pushSubscriptions } from '../server/db/schema';
 
 const origin = 'https://push.example.com';
 const path = '/api/notifications/test';
+const historyPath = '/api/notifications/history';
+const receiptPath = '/api/notifications/receipt';
 const keyPair = createECDH('prime256v1');
 const publicKey = keyPair.generateKeys().toString('base64url');
 const privateKey = Buffer.from(keyPair.getPrivateKey().toString('hex').padStart(64, '0'), 'hex').toString('base64url');
@@ -75,6 +77,7 @@ describe('envío global de notificaciones de prueba', () => {
   it('reserva el envío a la identidad habilitada con VAPID válido y origen autorizado', async () => {
     const send = vi.spyOn(webPush, 'sendNotification').mockResolvedValue(accepted);
     expect((await request(path, '')).status).toBe(401);
+    expect((await request(historyPath, '')).status).toBe(401);
     expect((await request(path, '', 'POST')).status).toBe(401);
     expect(await (await request(path, admin.cookie)).json()).toEqual({ enabled: false });
     expect((await request(path, admin.cookie, 'POST')).status).toBe(403);
@@ -86,33 +89,41 @@ describe('envío global de notificaciones de prueba', () => {
     vi.stubEnv('PUSH_TEST_ADMIN_USER_ID', admin.id);
     const config = await request(path, admin.cookie);
     expect(config.headers.get('Cache-Control')).toBe('no-store');
-    expect(await config.json()).toEqual({ enabled: true });
+    expect(await config.json()).toEqual({ enabled: true, historyEnabled: true });
     expect(await (await request(path, firstCookie)).json()).toEqual({ enabled: false });
+    expect((await request(historyPath, firstCookie)).status).toBe(403);
+    expect((await request(`${historyPath}?before=invalid`, admin.cookie)).status).toBe(400);
     expect((await request(path, firstCookie, 'POST', { userId: admin.id })).status).toBe(403);
     expect((await request(path, admin.cookie, 'POST', undefined, 'https://otro.example')).status).toBe(403);
 
     vi.stubEnv('VAPID_PRIVATE_KEY', 'inválida');
-    expect(await (await request(path, admin.cookie)).json()).toEqual({ enabled: false });
+    expect(await (await request(path, admin.cookie)).json()).toEqual({ enabled: false, historyEnabled: true });
+    expect((await request(historyPath, admin.cookie)).status).toBe(200);
     expect((await request(path, admin.cookie, 'POST')).status).toBe(403);
     expect(send).toHaveBeenCalledTimes(0);
   });
 
   it('envía la prueba a todos los suscriptos y conserva el historial de envíos programados', async () => {
     vi.stubEnv('PUSH_TEST_ADMIN_USER_ID', admin.id);
+    let device: string | undefined;
     for (const [endpoint, cookie] of [
       [successfulEndpoint, firstCookie], [expiredEndpoint, firstCookie], [failedEndpoint, secondCookie],
     ]) {
       const response = await request('/api/notifications/subscription', cookie, 'PUT', { endpoint, keys, daysBefore: 1 });
       expect(response.status).toBe(200);
+      if (endpoint === successfulEndpoint) ({ device } = await response.json());
     }
     const before = await db.select().from(pushSubscriptions);
     const successful = before.find(({ endpoint }) => endpoint === successfulEndpoint)!;
     const delivery = { subscriptionId: successful.id, dueDate: '2026-11-18', leaseUntil: 1, sentAt: 1, kind: 'recurring' as const };
     await db.insert(pushReminderDeliveries).values(delivery);
 
-    const send = vi.spyOn(webPush, 'sendNotification').mockImplementation(async ({ endpoint }) => {
+    const send = vi.spyOn(webPush, 'sendNotification').mockImplementation(async ({ endpoint }, message) => {
       if (endpoint === expiredEndpoint) throw Object.assign(new Error('Expirada'), { statusCode: 410 });
       if (endpoint === failedEndpoint) throw Object.assign(new Error('Fallo temporal'), { statusCode: 500 });
+      const { receiptToken } = JSON.parse(String(message));
+      expect((await request(receiptPath, '', 'POST', { token: `${receiptToken.slice(0, -1)}!`, status: 'shown' })).status).toBe(403);
+      expect((await request(receiptPath, '', 'POST', { token: receiptToken, status: 'shown' })).status).toBe(204);
       return accepted;
     });
 
@@ -121,12 +132,27 @@ describe('envío global de notificaciones de prueba', () => {
     expect(await response.json()).toEqual({ sent: 1, expired: 1, failed: 1 });
     expect(send.mock.calls.map(([target]) => target.endpoint).sort())
       .toEqual([successfulEndpoint, expiredEndpoint, failedEndpoint].sort());
-    for (const [target, message] of send.mock.calls) {
+    for (const [target, message, options] of send.mock.calls) {
       expect(target.keys).toEqual(keys);
-      expect(JSON.parse(String(message))).toEqual(payload);
+      expect(JSON.parse(String(message))).toEqual({ ...payload, dueDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), receiptToken: expect.any(String) });
+      expect(options).toMatchObject({ topic: 'track-it-test', urgency: 'high' });
     }
     expect(await db.select().from(pushReminderDeliveries)).toEqual([{ ...delivery, kind: 'recurring' }]);
     expect((await db.select({ endpoint: pushSubscriptions.endpoint }).from(pushSubscriptions)).map(({ endpoint }) => endpoint).sort())
       .toEqual([successfulEndpoint, failedEndpoint].sort());
+
+    const history = await request(historyPath, admin.cookie);
+    expect(history.headers.get('Cache-Control')).toBe('no-store');
+    const log = await history.json();
+    expect(log.runs[0]).toMatchObject({
+      source: 'test', status: 'completed', deliveryCount: 3, counts: { sent: 1, expired: 1, failed: 1, skipped: 0 },
+      deliveries: expect.arrayContaining([
+        expect.objectContaining({ device, kind: 'test', status: 'sent', provider: 'fcm', httpStatus: 201, receipt: 'shown', receiptAt: expect.any(String) }),
+        expect.objectContaining({ kind: 'test', status: 'expired', provider: 'fcm', httpStatus: 410, receipt: null }),
+        expect.objectContaining({ kind: 'test', status: 'failed', provider: 'mozilla', httpStatus: 500, receipt: null }),
+      ]),
+    });
+    const serialized = JSON.stringify(log);
+    for (const secret of [successfulEndpoint, keys.auth, keys.p256dh]) expect(serialized.includes(secret)).toBe(false);
   });
 });

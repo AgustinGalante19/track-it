@@ -96,20 +96,21 @@ describe('suscripciones de notificaciones', () => {
     const save = (cookie: string, daysBefore: number) => request('/notifications/subscription', cookie, 'PUT', { endpoint, keys, daysBefore });
     const remove = (cookie: string) => request('/notifications/subscription', cookie, 'DELETE', { endpoint });
     expect(await status(ownerCookie)).toBeNull();
-    expect(await (await save(ownerCookie, 1)).json()).toEqual({ daysBefore: 1 });
+    const enrolled = await (await save(ownerCookie, 1)).json();
+    expect(enrolled).toEqual({ daysBefore: 1, device: expect.stringMatching(/^[a-f0-9]{16}$/) });
     const [subscription] = await db.select().from(pushSubscriptions);
     await db.insert(pushReminderDeliveries).values({ subscriptionId: subscription.id, dueDate: '2026-11-18', leaseUntil: 1, sentAt: 1 });
 
     expect(await status(otherCookie)).toBeNull();
     expect((await save(otherCookie, 2)).status).toBe(409);
     expect((await remove(otherCookie)).status).toBe(200);
-    expect(await status(ownerCookie)).toEqual({ daysBefore: 1 });
-    expect(await (await save(ownerCookie, 3)).json()).toEqual({ daysBefore: 3 });
+    expect(await status(ownerCookie)).toEqual(enrolled);
+    expect(await (await save(ownerCookie, 3)).json()).toEqual({ ...enrolled, daysBefore: 3 });
     expect(await db.select().from(pushReminderDeliveries)).toHaveLength(1);
-    expect(await status(ownerCookie)).toEqual({ daysBefore: 3 });
+    expect(await status(ownerCookie)).toEqual({ ...enrolled, daysBefore: 3 });
 
     expect((await request('/auth/sign-out', ownerCookie, 'POST', undefined, 'https://otro.example')).status).toBe(403);
-    expect(await status(ownerCookie)).toEqual({ daysBefore: 3 });
+    expect(await status(ownerCookie)).toEqual({ ...enrolled, daysBefore: 3 });
     expect((await request('/auth/sign-out', ownerCookie, 'POST')).status).toBe(200);
     expect(await db.select().from(pushSubscriptions)).toEqual([]);
     expect(await db.select().from(pushReminderDeliveries)).toEqual([]);
@@ -126,7 +127,7 @@ describe('suscripciones de notificaciones', () => {
     expect(login.status).toBe(200);
     const nextCookie = login.headers.getSetCookie().map((cookie) => cookie.split(';')[0]).join('; ');
     const status = await request('/notifications/subscription/status', nextCookie, 'POST', { endpoint: browser });
-    expect(await status.json()).toEqual({ daysBefore: 1 });
+    expect(await status.json()).toEqual({ daysBefore: 1, device: expect.stringMatching(/^[a-f0-9]{16}$/) });
     expect((await request('/notifications/subscription', nextCookie, 'DELETE', { endpoint: browser })).status).toBe(200);
     expect(await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, browser))).toEqual([]);
   });

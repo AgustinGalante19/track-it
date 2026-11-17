@@ -29,6 +29,30 @@ export const pushReminderDeliveries = sqliteTable('push_reminder_delivery', {
   sentAt: integer('sent_at'),
   kind: text('kind').$type<'recurring' | 'card-closing'>().notNull().default('recurring'),
 }, (t) => [primaryKey({ columns: [t.subscriptionId, t.dueDate, t.kind] })]);
+export const notificationRuns = sqliteTable('notification_run', {
+  id: text('id').primaryKey(),
+  source: text('source', { enum: ['scheduler', 'cron', 'test'] }).notNull(),
+  status: text('status', { enum: ['running', 'completed', 'failed', 'skipped'] }).notNull().default('running'),
+  startedAt: integer('started_at', { mode: 'timestamp_ms' }).notNull(),
+  finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
+  reason: text('reason'),
+  sent: integer('sent').notNull().default(0),
+  expired: integer('expired').notNull().default(0),
+  failed: integer('failed').notNull().default(0),
+  skipped: integer('skipped').notNull().default(0),
+}, (t) => [index('notification_run_started_idx').on(t.startedAt, t.id)]);
+export const notificationDeliveries = sqliteTable('notification_delivery', {
+  id: text('id').primaryKey(),
+  runId: text('run_id').notNull().references(() => notificationRuns.id, { onDelete: 'cascade' }),
+  at: integer('at', { mode: 'timestamp_ms' }).notNull(),
+  kind: text('kind', { enum: ['recurring', 'card-closing', 'test'] }).notNull(),
+  status: text('status', { enum: ['pending', 'sent', 'expired', 'failed', 'skipped'] }).notNull(),
+  device: text('device').notNull(),
+  provider: text('provider', { enum: ['fcm', 'mozilla', 'other'] }).notNull(),
+  httpStatus: integer('http_status'),
+  receipt: text('receipt', { enum: ['shown', 'display-failed'] }),
+  receiptAt: integer('receipt_at', { mode: 'timestamp_ms' }),
+}, (t) => [index('notification_delivery_run_idx').on(t.runId, t.at)]);
 export const account = sqliteTable('account', {
   id: text('id').primaryKey(), accountId: text('account_id').notNull(), providerId: text('provider_id').notNull(),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),

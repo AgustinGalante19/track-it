@@ -9,14 +9,15 @@ function setupWorker() {
   const showNotification = vi.fn().mockResolvedValue(undefined);
   const openWindow = vi.fn().mockResolvedValue(undefined);
   const matchAll = vi.fn().mockResolvedValue([]);
+  const fetch = vi.fn().mockResolvedValue(undefined);
   const self = {
     addEventListener: (event: string, listener: (data: unknown) => void) => listeners.set(event, listener),
     registration: { showNotification },
     location: { origin: 'https://track-it.example' },
     clients: { openWindow, matchAll },
   };
-  runInNewContext(source, { self, URL });
-  return { push: listeners.get('push')!, click: listeners.get('notificationclick')!, showNotification, openWindow, matchAll };
+  runInNewContext(source, { self, URL, fetch });
+  return { push: listeners.get('push')!, click: listeners.get('notificationclick')!, showNotification, openWindow, matchAll, fetch };
 }
 
 it('displays a recurring reminder with a stable tag for the debit date', async () => {
@@ -78,6 +79,47 @@ it('shows test pushes without a due date and gives them a separate tag', async (
   worker.push({ data: { json: () => notice }, waitUntil });
   await waitUntil.mock.calls[0][0];
   expect(worker.showNotification).toHaveBeenCalledExactlyOnceWith(notice.title, expect.objectContaining({ body: notice.body, tag: 'track-it-test', renotify: true }));
+  expect(worker.fetch).not.toHaveBeenCalled();
+});
+
+it('keeps the test tag with a legacy due date and reports display after Android confirms it', async () => {
+  const worker = setupWorker();
+  const notice = { kind: 'test', title: 'Aviso de prueba', body: 'Mensaje de prueba.', dueDate: '2000-01-01', receiptToken: 'signed-token' };
+  const waitUntil = vi.fn<(completion: Promise<unknown>) => void>();
+  let resolveDisplay!: () => void;
+  worker.showNotification.mockReturnValueOnce(new Promise<void>((resolve) => { resolveDisplay = resolve; }));
+  worker.push({ data: { json: () => notice }, waitUntil });
+  expect(worker.showNotification).toHaveBeenCalledExactlyOnceWith(notice.title, expect.objectContaining({ tag: 'track-it-test', data: undefined }));
+  expect(worker.fetch).not.toHaveBeenCalled();
+  resolveDisplay();
+  await waitUntil.mock.calls[0][0];
+  expect(worker.fetch).toHaveBeenCalledExactlyOnceWith('/api/notifications/receipt', {
+    method: 'POST', mode: 'same-origin', credentials: 'omit', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: 'signed-token', status: 'shown' }),
+  });
+});
+
+it('reports a display failure without including the browser error in the receipt', async () => {
+  const worker = setupWorker();
+  const notice = { kind: 'test', title: 'Aviso de prueba', body: 'Mensaje de prueba.', receiptToken: 'signed-token' };
+  const waitUntil = vi.fn<(completion: Promise<unknown>) => void>();
+  worker.showNotification.mockRejectedValueOnce(new Error('display denied'));
+  worker.push({ data: { json: () => notice }, waitUntil });
+  await waitUntil.mock.calls[0][0];
+  expect(worker.fetch).toHaveBeenCalledExactlyOnceWith('/api/notifications/receipt', expect.objectContaining({
+    body: JSON.stringify({ token: 'signed-token', status: 'display-failed' }),
+  }));
+});
+
+it('keeps displaying a test notice when the receipt request fails', async () => {
+  const worker = setupWorker();
+  const notice = { kind: 'test', title: 'Aviso de prueba', body: 'Mensaje de prueba.', receiptToken: 'signed-token' };
+  const waitUntil = vi.fn<(completion: Promise<unknown>) => void>();
+  worker.fetch.mockRejectedValueOnce(new Error('network unavailable'));
+  worker.push({ data: { json: () => notice }, waitUntil });
+  await expect(waitUntil.mock.calls[0][0]).resolves.toBeUndefined();
+  expect(worker.showNotification).toHaveBeenCalledTimes(1);
+  expect(worker.fetch).toHaveBeenCalledTimes(1);
 });
 
 it.each([false, true])('opens the app root from a test notice or focuses it when open (%s)', async (alreadyOpen) => {

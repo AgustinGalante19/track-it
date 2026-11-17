@@ -3,6 +3,7 @@ import { and, eq, gt } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Database } from './db/client';
 import { pushSubscriptions, session } from './db/schema';
+import { notificationDeviceLabel } from './notification-history';
 import { DomainError } from './service';
 
 const endpoint = z.string().max(2048).refine((value) => value === value.trim() && (
@@ -59,15 +60,19 @@ export function getPushConfig() {
   }
 }
 
-export function getTestPushConfig(userId: string) {
+export function isPushTestAdmin(userId: string) {
   const adminUserId = process.env.PUSH_TEST_ADMIN_USER_ID?.trim();
-  return adminUserId && userId === adminUserId ? getPushConfig() : null;
+  return !!adminUserId && userId === adminUserId;
+}
+
+export function getTestPushConfig(userId: string) {
+  return isPushTestAdmin(userId) ? getPushConfig() : null;
 }
 
 export async function pushSubscriptionStatus(db: Database, userId: string, endpoint: string) {
-  const [subscription] = await db.select({ daysBefore: pushSubscriptions.daysBefore }).from(pushSubscriptions)
+  const [subscription] = await db.select({ id: pushSubscriptions.id, daysBefore: pushSubscriptions.daysBefore }).from(pushSubscriptions)
     .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint)));
-  return subscription ?? null;
+  return subscription ? { daysBefore: subscription.daysBefore, device: notificationDeviceLabel(subscription.id) } : null;
 }
 
 export async function savePushSubscription(db: Database, userId: string, sessionId: string, input: z.infer<typeof pushSubscriptionInput>) {
@@ -84,9 +89,9 @@ export async function savePushSubscription(db: Database, userId: string, session
         set: { sessionId, ...keys, daysBefore },
         setWhere: eq(pushSubscriptions.userId, userId),
       })
-      .returning({ daysBefore: pushSubscriptions.daysBefore });
+      .returning({ id: pushSubscriptions.id, daysBefore: pushSubscriptions.daysBefore });
     if (!subscription) throw new DomainError('Este navegador ya está suscripto a otra cuenta.', 409);
-    return subscription;
+    return { daysBefore: subscription.daysBefore, device: notificationDeviceLabel(subscription.id) };
   });
 }
 

@@ -4,6 +4,17 @@ function isReminderDate(value) {
   return typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(value);
 }
 
+async function postReceipt(token, status) {
+  try {
+    await fetch('/api/notifications/receipt', {
+      method: 'POST', mode: 'same-origin', credentials: 'omit', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, status }),
+    });
+  } catch {
+    // A receipt is diagnostic. A failed request does not affect the notice.
+  }
+}
+
 self.addEventListener('push', (event) => {
   let notification;
   try {
@@ -12,19 +23,23 @@ self.addEventListener('push', (event) => {
     return;
   }
   if (typeof notification?.title !== 'string' || typeof notification.body !== 'string') return;
-  const { kind, title, body, dueDate } = notification;
+  const { kind, title, body, dueDate, receiptToken } = notification;
   const test = kind === 'test';
   if (!test && !isReminderDate(dueDate)) return;
   const prefix = kind === 'card-closing' ? 'card-closing' : 'recurring';
 
-  event.waitUntil(self.registration.showNotification(title, {
+  const display = self.registration.showNotification(title, {
     body,
     icon: '/icon-192.png',
     tag: test ? testNotificationTag : `${prefix}-${dueDate}`,
     renotify: test,
     data: test ? undefined : { dueDate },
     lang: 'es-AR',
-  }));
+  });
+  event.waitUntil(typeof receiptToken === 'string' && receiptToken ? display.then(
+    () => postReceipt(receiptToken, 'shown'),
+    () => postReceipt(receiptToken, 'display-failed'),
+  ) : display);
 });
 
 self.addEventListener('notificationclick', (event) => {
