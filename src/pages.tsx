@@ -391,7 +391,7 @@ function isOverdue(period: Occurrence, date: string) {
   return period.status === "pending" && period.dueDate < date
 }
 
-function OverdueRecurringCards() {
+function DueRecurringCards() {
   const { data, open } = useFinance()
   const date = today()
   const accounts = new Map(
@@ -401,30 +401,32 @@ function OverdueRecurringCards() {
   const categories = new Map(
     data.categories.map((category) => [category.name, category]),
   )
-  const overdue = data.occurrences
+  const due = data.occurrences
     .flatMap((period) => {
       const account = accounts.get(period.accountId)
       const rule = rules.get(period.ruleId)
-      return rule && account && !account.archived && isOverdue(period, date)
+      return rule && account && !account.archived &&
+        period.status === "pending" && period.dueDate <= date
         ? [{ period, account, rule }]
         : []
     })
     .sort((a, b) => a.period.dueDate.localeCompare(b.period.dueDate))
 
-  if (!overdue.length) return null
+  if (!due.length) return null
 
   return (
     <ul
-      className='overdue-recurring-list'
+      className='due-recurring-list'
       role='list'
-      aria-label='Recurrentes vencidos'
+      aria-label='Vencimientos de recurrentes'
     >
-      {overdue.map(({ period, account, rule }) => {
+      {due.map(({ period, account, rule }) => {
+        const dueToday = period.dueDate === date
         const dueDate = `${dateLabel(period.dueDate)} ${period.dueDate.slice(0, 4)}`
         const actionLabel =
           account.type === "credit" ? "Registrar cargo" : "Confirmar pago"
         return (
-          <li className='overdue-recurring-card' key={period.id}>
+          <li className='due-recurring-card' key={period.id}>
             <VisualIcon
               iconKey={recurringIcon(rule, categories.get(rule.category))}
             />
@@ -441,13 +443,13 @@ function OverdueRecurringCards() {
                 <span className='sr-only'>Importe estimado </span>
                 {formatMoney(period.amount, account.currency)}
               </strong>
-              <span className='badge badge-warm'>Vencido</span>
+              <span className='badge badge-warm'>{dueToday ? "Vence hoy" : "Vencido"}</span>
             </div>
             <Button
               variant='outline'
               size='sm'
               className='recurring-payment-button'
-              aria-label={`${actionLabel} de ${period.name}, vencido el ${dueDate}`}
+              aria-label={`${actionLabel} de ${period.name}, ${dueToday ? "vence hoy" : `venció el ${dueDate}`}`}
               onClick={() => open({ type: "charge", occurrence: period })}
             >
               {actionLabel}
@@ -527,7 +529,7 @@ export function ExpensesPage() {
           </>
         }
       />
-      <OverdueRecurringCards />
+      <DueRecurringCards />
       <div className='list-toolbar'>
         <div className='filter-tabs' role='group' aria-label='Tipo de gasto'>
           {[

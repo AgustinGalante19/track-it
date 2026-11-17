@@ -27,6 +27,7 @@ afterEach(() => { cleanup(); financeStore.resetSession(); vi.unstubAllGlobals();
 it('permite registrar desde Inicio un débito recurrente vencido de otro mes y moneda', async () => {
   const date = today();
   const dueDate = addMonth(date, -1);
+  const nextDueDate = addMonth(date, 1);
   const accountId = '12345678-1234-4234-8234-123456789012';
   const creditId = '34567890-1234-4234-8234-123456789012';
   const creditRuleId = '45678901-1234-4234-8234-123456789012';
@@ -50,7 +51,8 @@ it('permite registrar desde Inicio un débito recurrente vencido de otro mes y m
       occurrence,
       { ...occurrence, id: 'credit', ruleId: creditRuleId, accountId: creditId, name: 'Cargo de tarjeta' },
       { ...occurrence, id: 'credit-current', ruleId: creditRuleId, accountId: creditId, name: 'Cargo de este mes', period: month, dueDate: date },
-      { ...occurrence, id: 'today', period: date.slice(0, 7), dueDate: date, name: 'Vence hoy' },
+      { ...occurrence, id: 'today', period: month, dueDate: date, name: 'Servicio de hoy' },
+      { ...occurrence, id: 'future', period: nextDueDate.slice(0, 7), dueDate: nextDueDate, name: 'Servicio futuro' },
       { ...occurrence, id: 'skipped', status: 'skipped', name: 'Período omitido' },
       { ...occurrence, id: 'orphan', ruleId: 'removed', name: 'Vencimiento eliminado' },
       { ...occurrence, id: 'orphan-current', ruleId: 'removed', period: month, dueDate: date },
@@ -87,18 +89,21 @@ it('permite registrar desde Inicio un débito recurrente vencido de otro mes y m
   }], { initialEntries: [`/?mes=${month}`] });
   render(createElement(RouterProvider, { router }));
 
-  const overdue = within(await screen.findByRole('list', { name: 'Recurrentes vencidos' }));
-  const [debitCard, creditCard] = overdue.getAllByRole('listitem');
-  expect(overdue.getAllByRole('listitem')).toHaveLength(2);
+  const due = within(await screen.findByRole('list', { name: 'Vencimientos de recurrentes' }));
+  const [debitCard, creditCard, ...todayCards] = due.getAllByRole('listitem');
+  expect(todayCards).toHaveLength(2);
+  for (const card of todayCards) expect(within(card).getByText('Vence hoy')).toBeTruthy();
+  expect(due.getByRole('button', { name: 'Confirmar pago de Servicio de hoy, vence hoy' })).toBeTruthy();
+  expect(due.queryByText('Servicio futuro')).toBeNull();
   expect(screen.queryByRole('heading', { name: 'Recurrentes vencidos' })).toBeNull();
-  expect(overdue.queryByText(/Si ya pagaste/)).toBeNull();
+  expect(due.queryByText(/Si ya pagaste/)).toBeNull();
   expect(within(debitCard).getByText('USD 125')).toBeTruthy();
   expect(within(debitCard).getByText('Vencido')).toBeTruthy();
   expect(within(creditCard).getByText('Vencido')).toBeTruthy();
   expect(within(creditCard).getByRole('button', { name: /Registrar cargo de Cargo de tarjeta/ })).toBeTruthy();
   expect(debitCard.querySelector('[data-icon="water"]')).toBeTruthy();
   expect(creditCard.querySelector('[data-icon="netflix"]')).toBeTruthy();
-  expect(overdue.queryByText(occurrence.emoji)).toBeNull();
+  expect(due.queryByText(occurrence.emoji)).toBeNull();
   expect(screen.getByText('2 por confirmar')).toBeTruthy();
 
   fireEvent.click(within(debitCard).getByRole('button', { name: /Confirmar pago de Débito en dólares/ }));
@@ -110,8 +115,8 @@ it('permite registrar desde Inicio un débito recurrente vencido de otro mes y m
   fireEvent.click(dialog.getByRole('button', { name: 'Confirmar pago' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(send).toHaveBeenCalledExactlyOnceWith(path, expect.objectContaining({ amount: 12950, date: dueDate }), 'POST');
-  expect(overdue.queryByText('Débito en dólares')).toBeNull();
-  expect(overdue.getByText('Cargo de tarjeta')).toBeTruthy();
+  expect(due.queryByText('Débito en dólares')).toBeNull();
+  expect(due.getByText('Cargo de tarjeta')).toBeTruthy();
 
   const deletePath = `/recurring/${creditRuleId}`;
   vi.mocked(send).mockImplementationOnce(async <T>() => ({
@@ -129,7 +134,9 @@ it('permite registrar desde Inicio un débito recurrente vencido de otro mes y m
   expect(send).toHaveBeenLastCalledWith(deletePath, { version: 1 }, 'DELETE');
   fireEvent.click(navigation.getByRole('link', { name: 'Gastos' }));
   await screen.findByRole('heading', { name: 'Gastos' });
-  expect(screen.queryByRole('list', { name: 'Recurrentes vencidos' })).toBeNull();
+  const remaining = within(screen.getByRole('list', { name: 'Vencimientos de recurrentes' }));
+  expect(remaining.getAllByRole('listitem')).toHaveLength(1);
+  expect(remaining.getByText('Servicio de hoy')).toBeTruthy();
   expect(screen.getByText('1 por confirmar')).toBeTruthy();
 });
 
